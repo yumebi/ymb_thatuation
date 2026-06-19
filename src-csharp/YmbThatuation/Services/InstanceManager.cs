@@ -333,7 +333,7 @@ public class InstanceManager
     /// ページ側JSが任意文字列を渡せる(window.open/リンクhref)ため、http/https以外
     /// (ローカルパスやUNCパス等)はShellExecuteで実行されないよう拒否する。
     /// </summary>
-    private static void OpenInExternalBrowser(string? uri)
+    public static void OpenInExternalBrowser(string? uri)
     {
         if (string.IsNullOrEmpty(uri)) return;
         if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed)) return;

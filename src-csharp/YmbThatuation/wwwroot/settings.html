@@ -730,9 +730,14 @@
     $("check-app-update").disabled = true;
     try {
       const r = await invoke("check_for_app_update");
-      notify(r.update_available
-        ? t("settings.update_available", { version: r.latest_version })
-        : t("settings.no_update"));
+      if (r.update_available) {
+        notify(t("settings.update_available", { version: r.latest_version }));
+        if (r.release_url && confirm(t("settings.update_open_page", { version: r.latest_version }))) {
+          invoke("open_url", { url: r.release_url }).catch(() => {});
+        }
+      } else {
+        notify(t("settings.no_update"));
+      }
     } catch (e) {
       notify(String(e), true);
     }

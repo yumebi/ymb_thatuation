@@ -131,7 +131,10 @@ public partial class MainWindow : Window
 
         if (configStore.Get().Settings.Notifications)
         {
-            tray?.ShowNotification("新しいバージョンがあります", $"v{result.LatestVersion} (現在 v{result.CurrentVersion})");
+            tray?.ShowNotification(
+                "新しいバージョンがあります",
+                $"v{result.LatestVersion} (現在 v{result.CurrentVersion})。クリックでダウンロードページを開きます",
+                () => InstanceManager.OpenInExternalBrowser(result.ReleaseUrl));
             tray?.PlayNotificationSound();
         }
     }

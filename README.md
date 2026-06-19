@@ -57,6 +57,10 @@ dotnet publish -c Release -r win-x64 --self-contained true
 `installer/setup.iss` を Inno Setup でコンパイルすると `installer/Output/` に
 `YmbThatuation-Setup-<version>.exe` が生成される(WebView2 Runtime未導入の場合は案内表示)。
 
+> **注意**: このインストーラーはコード署名されていません。ダウンロード・実行時に
+> Windows SmartScreenが「不明な発行元」として警告を表示する場合があります。
+> 「詳細情報」→「実行」で続行できます。
+
 ## データ保存先
 
 `%APPDATA%\jp.yumebi.thatuation-cs\`

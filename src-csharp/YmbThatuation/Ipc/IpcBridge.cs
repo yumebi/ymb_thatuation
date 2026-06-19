@@ -67,6 +67,7 @@ public class IpcBridge
                 "test_notification_sound" => TestNotificationSound(),
                 "get_app_version" => GetAppVersion(),
                 "check_for_app_update" => await CheckForAppUpdate(),
+                "open_url" => OpenUrl(args),
                 _ => throw new InvalidOperationException($"未実装のコマンド: {command}"),
             };
 
@@ -302,6 +303,13 @@ public class IpcBridge
             }
         });
         AutostartService.SetEnabled(_configStore.Get().Settings.Autostart);
+        return null;
+    }
+
+    /// <summary>設定画面から更新ページ等のURLを既定ブラウザで開く。</summary>
+    private static object? OpenUrl(Dictionary<string, JsonElement> args)
+    {
+        InstanceManager.OpenInExternalBrowser(GetOptionalString(args, "url"));
         return null;
     }
 

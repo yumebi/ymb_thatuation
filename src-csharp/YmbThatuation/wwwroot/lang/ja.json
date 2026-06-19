@@ -110,6 +110,7 @@
   "settings.app_version": "バージョン: {version}",
   "settings.check_update": "更新を確認",
   "settings.update_available": "新しいバージョン v{version} があります",
+  "settings.update_open_page": "v{version} のダウンロードページを開きますか?",
   "settings.no_update": "最新版です",
   "settings.restart_app": "本体を再起動",
   "settings.restart_confirm": "本体を再起動しますか?\n起動中のサービスは一度終了します。",

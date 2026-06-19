@@ -16,6 +16,7 @@ public class TrayService : IDisposable
     private readonly Window _window;
     private readonly ConfigStore _configStore;
     private readonly Forms.NotifyIcon _notifyIcon;
+    private EventHandler? _balloonClickHandler;
 
     public bool IsExiting { get; private set; }
 
@@ -73,10 +74,22 @@ public class TrayService : IDisposable
         return bitmap;
     }
 
-    public void ShowNotification(string title, string body)
+    public void ShowNotification(string title, string body, Action? onClick = null)
     {
         _notifyIcon.BalloonTipTitle = title;
         _notifyIcon.BalloonTipText = body;
+
+        if (_balloonClickHandler != null)
+        {
+            _notifyIcon.BalloonTipClicked -= _balloonClickHandler;
+            _balloonClickHandler = null;
+        }
+        if (onClick != null)
+        {
+            _balloonClickHandler = (_, _) => onClick();
+            _notifyIcon.BalloonTipClicked += _balloonClickHandler;
+        }
+
         _notifyIcon.ShowBalloonTip(3000);
     }
 
