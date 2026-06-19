@@ -51,8 +51,8 @@ var
   Version: String;
 begin
   Result :=
-    RegQueryStringValue(HKLM64, WebView2ClientKey, 'pv', Version) or
-    RegQueryStringValue(HKLM32, WebView2ClientKeyWow, 'pv', Version) or
+    RegQueryStringValue(HKLM64, WebView2ClientKeyWow, 'pv', Version) or
+    RegQueryStringValue(HKLM32, WebView2ClientKey, 'pv', Version) or
     RegQueryStringValue(HKCU, WebView2ClientKey, 'pv', Version);
 end;
 
