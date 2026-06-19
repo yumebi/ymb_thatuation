@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>welcome</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #0d0e12;
+    color: #6a6d78;
+    font-family: "Segoe UI", sans-serif;
+    user-select: none;
+    overflow: hidden;
+  }
+  #wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 18px;
+    text-align: center;
+  }
+  #logo { width: 96px; height: 96px; }
+  h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #aeb0b8;
+    letter-spacing: 0.05em;
+  }
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #5e616b;
+  }
+  #wake {
+    display: none;
+    margin-top: 4px;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    background: #3fae5c;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #wake:hover { background: #4cc46c; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <svg id="logo" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#5b8def"/>
+        <stop offset="1" stop-color="#41b883"/>
+      </linearGradient>
+    </defs>
+    <rect width="96" height="96" rx="20" fill="url(#g)"/>
+    <path d="M20 30 h56 a8 8 0 0 1 8 8 v22 a8 8 0 0 1 -8 8 h-30 l-14 12 v-12 h-12 a8 8 0 0 1 -8 -8 v-22 a8 8 0 0 1 8 -8 z" fill="#fff"/>
+    <circle cx="38" cy="50" r="4" fill="#5b8def"/>
+    <circle cx="52" cy="50" r="4" fill="#e8a33d"/>
+    <circle cx="66" cy="50" r="4" fill="#41b883"/>
+  </svg>
+  <h1 id="title">YMB Thatuation</h1>
+  <p id="body" data-i18n-html="welcome.body">左のサイドバーからサービスを選んで起動してください<br>⚙ から設定を変更できます</p>
+  <button id="wake"></button>
+</div>
+<script src="i18n.js"></script>
+<script>
+  const invoke =
+    window.__TAURI__?.core?.invoke ??
+    (window.__TAURI_INTERNALS__
+      ? (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args)
+      : null);
+
+  const titleEl = document.getElementById("title");
+  const bodyEl = document.getElementById("body");
+  const wakeBtn = document.getElementById("wake");
+  let pending = null;
+
+  wakeBtn.addEventListener("click", async () => {
+    if (!pending) return;
+    try {
+      await invoke("activate", { id: pending.id });
+    } catch (e) {
+      // 一覧側にエラー表示があるためここでは無視
+    }
+  });
+
+  async function refresh() {
+    if (!invoke) return;
+    try {
+      const list = await invoke("ui_state");
+      pending = list.find((i) => i.active && !i.alive) || null;
+      if (pending) {
+        titleEl.style.display = "none";
+        bodyEl.style.display = "none";
+        wakeBtn.style.display = "inline-block";
+        wakeBtn.textContent = window.t
+          ? window.t("welcome.wake_up", { name: pending.name })
+          : `${pending.name} のスリープを解除する`;
+      } else {
+        titleEl.style.display = "";
+        bodyEl.style.display = "";
+        wakeBtn.style.display = "none";
+      }
+    } catch (e) {
+      // 無視
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 1500);
+</script>
+</body>
+</html>

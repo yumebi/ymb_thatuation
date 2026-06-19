@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>設定</title>
+<style>
+  html, body {
+    margin: 0;
+    background: #25262b;
+    color: #e4e5ea;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 14px;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 18px; }
+  h2 { font-size: 15px; margin-top: 28px; border-bottom: 1px solid #3a3c44; padding-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 8px; border-bottom: 1px solid #33353d; vertical-align: middle; }
+  .recipe-tag {
+    background: #33353d;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: #aeb0b8;
+  }
+  .awake-tag { font-size: 11px; color: #e8a33d; }
+  .color-chip { width: 14px; height: 14px; border-radius: 50%; display: inline-block; vertical-align: -2px; }
+  button {
+    background: #3a5bbf;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button:hover { filter: brightness(1.15); }
+  button.danger { background: #84353a; }
+  button.ghost { background: #33353d; color: #c9cad1; padding: 5px 9px; }
+  input, select {
+    background: #1e1f24;
+    color: #e4e5ea;
+    border: 1px solid #3a3c44;
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+  .row { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; margin-top: 16px; border-bottom: 1px solid #3a3c44; }
+  .tab-btn {
+    background: none;
+    color: #aeb0b8;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+  .tab-btn:hover { filter: none; color: #e4e5ea; background: #2c2d33; }
+  .tab-btn.active { color: #fff; border-bottom-color: #3a5bbf; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  #msg { color: #7fd0a0; font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+  #msg.err { color: #e58c8c; }
+  label { color: #aeb0b8; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  input[type="checkbox"] { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 data-i18n="settings.heading">⚙ YMB Thatuation 設定</h1>
+
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-tab="services" data-i18n="settings.tab_services">サービス</button>
+    <button type="button" class="tab-btn" data-tab="extensions" data-i18n="settings.tab_extensions">拡張機能</button>
+    <button type="button" class="tab-btn" data-tab="general" data-i18n="settings.tab_general">一般</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-services">
+  <h2><span data-i18n="settings.services_heading">サービス一覧</span> <button type="button" class="ghost" id="refresh-mem" data-i18n="settings.refresh_mem" style="font-size:12px">メモリ使用量を更新</button>
+    <span id="host-mem" style="color:#8a8c94;font-size:12px;font-weight:normal"></span>
+    <span id="apps-mem" style="color:#8a8c94;font-size:12px;font-weight:normal"></span>
+    <span id="total-mem" style="color:#8a8c94;font-size:12px;font-weight:normal"></span>
+  </h2>
+  <table id="list"></table>
+
+  <h2 id="form-title" data-i18n="settings.add_service_title">サービスを追加</h2>
+  <form id="add">
+    <div class="row">
+      <select id="recipe">
+        <option value="gmail">Gmail</option>
+        <option value="googlecalendar">Google Calendar</option>
+        <option value="googlechat">Google Chat</option>
+        <option value="chatwork">Chatwork</option>
+        <option value="slack">Slack</option>
+        <option value="teams">Microsoft Teams</option>
+        <option value="messenger">Messenger (Facebook)</option>
+        <option value="discord">Discord</option>
+        <option value="notion">Notion</option>
+        <option value="youtube">YouTube</option>
+        <option value="x">X (Twitter)</option>
+        <option value="deckblue">deck.blue (Bluesky)</option>
+        <option value="misskey">Misskey (misskey.io)</option>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="telegram">Telegram</option>
+        <option value="linkedin">LinkedIn</option>
+        <option value="instagram">Instagram</option>
+        <option value="reddit">Reddit</option>
+        <option value="trello">Trello</option>
+        <option value="github">GitHub</option>
+        <option value="twitch">Twitch</option>
+        <option value="zoom">Zoom</option>
+        <option value="googledrive">Google Drive</option>
+        <option value="googlekeep">Google Keep</option>
+        <option value="threads">Threads</option>
+        <option value="linear">Linear</option>
+        <option value="generic" data-i18n="settings.recipe_other">その他 (URL指定)</option>
+      </select>
+      <input id="name" data-i18n-placeholder="settings.name_placeholder" placeholder="表示名 (例: Gmail 仕事)" required style="flex:1" />
+      <input id="color" type="color" value="#5b8def" data-i18n-title="settings.color_title" title="識別カラー" style="width:44px;height:32px;padding:2px" />
+    </div>
+    <div class="row" id="url-row" style="display:none">
+      <input id="url" placeholder="https://..." style="flex:1" />
+    </div>
+    <div class="row" id="cw-token-row" style="display:none">
+      <input id="cw-token" data-i18n-placeholder="settings.chatwork_token_placeholder" placeholder="Chatwork APIトークン (スリープ中の未読取得用・任意)" style="flex:1" />
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="keep-awake" /><span data-i18n="settings.keep_awake">スリープさせない</span></label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="notify-muted" /><span data-i18n="settings.notify_muted">このサービスは通知しない</span></label>
+    </div>
+    <div class="row">
+      <label><span data-i18n="settings.chrome_ua_label">ブラウザのUA偽装</span>
+        <select id="chrome-ua">
+          <option value="" data-i18n="settings.chrome_ua_default">既定(サービスに合わせる)</option>
+          <option value="true" data-i18n="settings.chrome_ua_true">Chromeとして偽装する</option>
+          <option value="false" data-i18n="settings.chrome_ua_false">偽装しない(WebView2既定)</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="force-renavigate" /><span data-i18n="settings.force_renavigate">読み込み画面が真っ白なまま固まる場合に再読み込みを試行する</span></label>
+    </div>
+    <div class="row">
+      <img id="icon-preview" alt="" style="width:28px;height:28px;object-fit:contain;border-radius:6px;background:#1e1f24" />
+      <label class="ghost" style="cursor:pointer">
+        <span data-i18n="settings.icon_select">アイコン画像を選択</span>
+        <input id="icon-file" type="file" accept="image/*" style="display:none" />
+      </label>
+      <button type="button" class="ghost" id="icon-clear" data-i18n="settings.icon_reset">アイコンをリセット</button>
+    </div>
+    <div class="row">
+      <button type="submit" id="submit-btn" data-i18n="settings.add">追加</button>
+      <button type="button" class="ghost" id="cancel-edit" data-i18n="settings.cancel_edit" style="display:none">編集をやめる</button>
+    </div>
+  </form>
+  </div>
+
+  <div class="tab-panel" id="tab-general">
+  <h2 data-i18n="settings.general_heading">一般</h2>
+  <div class="row"><label><input type="checkbox" id="g-autostart" /><span data-i18n="settings.autostart">Windows起動時に自動起動する</span></label></div>
+  <div class="row"><label><input type="checkbox" id="g-minimized" /><span data-i18n="settings.start_minimized">最小化した状態で起動する</span></label></div>
+  <div class="row"><label><input type="checkbox" id="g-tray" /><span data-i18n="settings.close_to_tray">×ボタンで閉じてもトレイに常駐する</span></label></div>
+  <div class="row"><label><input type="checkbox" id="g-notify" /><span data-i18n="settings.notify">未読が増えたらデスクトップ通知を出す</span></label></div>
+  <div class="row"><label><input type="checkbox" id="g-notify-sound" /><span data-i18n="settings.notify_sound">通知時にサウンドを再生する</span></label></div>
+  <div class="row">
+    <button type="button" class="ghost" id="notify-sound-select" data-i18n="settings.notify_sound_select">音声ファイルを選択</button>
+    <button type="button" class="ghost" id="notify-sound-reset" data-i18n="settings.notify_sound_reset">既定の音に戻す</button>
+    <button type="button" class="ghost" id="notify-sound-test" data-i18n="settings.notify_sound_test">テスト再生</button>
+    <span id="notify-sound-current" style="color:#aeb0b8;font-size:13px"></span>
+  </div>
+  <div class="row">
+    <label><span data-i18n="settings.language_label">言語</span>
+      <select id="g-language">
+        <option value="ja" data-i18n="settings.language_ja">日本語</option>
+        <option value="en" data-i18n="settings.language_en">English</option>
+      </select>
+    </label>
+  </div>
+
+  </div>
+
+  <div class="tab-panel" id="tab-extensions">
+  <h2 data-i18n="settings.ext_heading">拡張機能 (Chrome拡張)</h2>
+  <p data-i18n-html="settings.ext_desc" style="color:#aeb0b8;font-size:13px;line-height:1.6">
+    展開済み(unpacked)のChrome拡張を拡張機能フォルダに置くと、サービス起動時に読み込まれます。<br>
+    反映するには対象サービスを一度スリープして再表示してください。
+    ※コンテンツ系拡張(uBlock Origin / Dark Reader 等)が対象。ストアからの直接インストールやポップアップUIは非対応です。
+  </p>
+  <table id="ext-list"></table>
+  <div class="row">
+    <input id="cws-input" data-i18n-placeholder="settings.cws_placeholder" placeholder="ChromeウェブストアのURL または 拡張ID" style="flex:1" />
+    <button type="button" id="cws-install" data-i18n="settings.cws_install">ストアからインストール</button>
+  </div>
+  <div class="row">
+    <button type="button" class="ghost" id="open-ext-dir" data-i18n="settings.open_ext_dir">拡張機能フォルダを開く</button>
+    <button type="button" class="ghost" id="reload-ext" data-i18n="settings.ext_check_update">更新</button>
+  </div>
+
+  </div>
+
+  <div class="tab-panel" id="tab-general2">
+  <h2 data-i18n="settings.sleep_heading">スリープ</h2>
+  <div class="row">
+    <label data-i18n="settings.sleep_before">非表示になってから</label>
+    <input id="sleep-min" type="number" min="0" max="1440" style="width:80px" />
+    <label data-i18n="settings.sleep_after">分で自動スリープ(0で無効)</label>
+  </div>
+  <h2 data-i18n="settings.startup_heading">起動</h2>
+  <div class="row">
+    <label><input type="checkbox" id="g-staggered-startup" /><span data-i18n="settings.staggered_startup">各アプリを遅延起動させる</span></label>
+  </div>
+  <div class="row">
+    <label data-i18n="settings.startup_delay_before">起動間隔</label>
+    <input id="startup-delay" type="number" min="0" max="120" style="width:80px" />
+    <label data-i18n="settings.startup_delay_after">秒(チェックを外すと全て同時に起動します)</label>
+  </div>
+  <h2 data-i18n="settings.host_heading">本体</h2>
+  <div class="row">
+    <span id="app-version" style="color:#8a8c94;font-size:12px"></span>
+  </div>
+  <div class="row">
+    <button type="button" class="ghost" id="restart-app" data-i18n="settings.restart_app">本体を再起動</button>
+  </div>
+  <div class="row">
+    <button type="button" class="ghost" id="export-settings" data-i18n="settings.export">設定をエクスポート</button>
+    <button type="button" class="ghost" id="import-settings" data-i18n="settings.import">設定をインポート</button>
+  </div>
+
+  </div>
+
+  <p id="msg"></p>
+</main>
+<script src="i18n.js"></script>
+<script>
+  const invoke = (cmd, args) =>
+    window.chrome.webview.hostObjects.ymb
+      .InvokeAsync(cmd, JSON.stringify(args ?? {}))
+      .then((r) => {
+        const parsed = JSON.parse(r);
+        if (parsed && typeof parsed === "object" && "__error__" in parsed) {
+          throw new Error(parsed.__error__);
+        }
+        return parsed;
+      });
+  const msg = document.getElementById("msg");
+  const $ = (id) => document.getElementById(id);
+  let editingId = null;
+  let customIcon = null; // 選択中のカスタムアイコン(data URL) / null=未設定
+
+  function notify(text, isErr) {
+    msg.textContent = text;
+    msg.className = isErr ? "err" : "";
+    setTimeout(() => { msg.textContent = ""; }, 5000);
+  }
+
+  // 既定のWebコンテキストメニューを出さない
+  document.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+  });
+
+  function switchTab(name) {
+    document.querySelectorAll(".tab-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.tab === name);
+    });
+    document.querySelectorAll(".tab-panel").forEach((p) => {
+      p.classList.toggle("active", p.id === `tab-${name}` || p.id === `tab-${name}2`);
+    });
+  }
+  document.querySelectorAll(".tab-btn").forEach((b) => {
+    b.addEventListener("click", () => switchTab(b.dataset.tab));
+  });
+
+  function updateIconPreview(inst) {
+    const preview = $("icon-preview");
+    const src = customIcon || `icons/${($("recipe").value)}.svg`;
+    preview.src = src;
+    preview.onerror = () => { preview.style.visibility = "hidden"; };
+    preview.onload = () => { preview.style.visibility = "visible"; };
+  }
+
+  function startEdit(inst) {
+    editingId = inst.id;
+    $("form-title").textContent = t("settings.edit_service_title", { name: inst.name });
+    $("recipe").value = inst.recipe;
+    $("recipe").disabled = true;
+    $("name").value = inst.name;
+    $("color").value = inst.color;
+    $("url").value = inst.url || "";
+    $("url-row").style.display = inst.recipe === "generic" ? "" : "none";
+    $("cw-token-row").style.display = inst.recipe === "chatwork" ? "" : "none";
+    $("cw-token").value = inst.chatwork_token || "";
+    $("keep-awake").checked = !!inst.keep_awake;
+    $("notify-muted").checked = !!inst.notify_muted;
+    $("chrome-ua").value = inst.chrome_ua === true ? "true" : inst.chrome_ua === false ? "false" : "";
+    $("force-renavigate").checked = !!inst.force_renavigate;
+    customIcon = inst.custom_icon || null;
+    $("icon-file").value = "";
+    updateIconPreview(inst);
+    $("submit-btn").textContent = t("settings.update");
+    $("cancel-edit").style.display = "";
+    window.scrollTo({ top: $("form-title").offsetTop, behavior: "smooth" });
+  }
+
+  function endEdit() {
+    editingId = null;
+    $("form-title").textContent = t("settings.add_service_title");
+    $("recipe").disabled = false;
+    $("name").value = "";
+    $("url").value = "";
+    $("cw-token").value = "";
+    $("cw-token-row").style.display = "none";
+    $("keep-awake").checked = false;
+    $("notify-muted").checked = false;
+    $("chrome-ua").value = "";
+    $("force-renavigate").checked = false;
+    customIcon = null;
+    $("icon-file").value = "";
+    updateIconPreview({});
+    $("submit-btn").textContent = t("settings.add");
+    $("cancel-edit").style.display = "none";
+  }
+
+  $("icon-file").addEventListener("change", () => {
+    const file = $("icon-file").files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      customIcon = reader.result;
+      updateIconPreview({});
+    };
+    reader.readAsDataURL(file);
+  });
+
+  $("icon-clear").addEventListener("click", () => {
+    customIcon = null;
+    $("icon-file").value = "";
+    updateIconPreview({});
+  });
+
+  /// URL指定サービスの追加/編集時、未設定ならfaviconを自動取得してcustomIconに使う。
+  async function fetchFaviconDataUrl(pageUrl) {
+    let host;
+    try { host = new URL(pageUrl).hostname; } catch { return null; }
+    const src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth || 64;
+          canvas.height = img.naturalHeight || 64;
+          canvas.getContext("2d").drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        } catch {
+          resolve(src);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  $("url").addEventListener("change", async () => {
+    const url = $("url").value.trim();
+    if (!url || $("recipe").value !== "generic" || customIcon) return;
+    const dataUrl = await fetchFaviconDataUrl(url);
+    if (dataUrl) {
+      customIcon = dataUrl;
+      updateIconPreview({});
+    }
+  });
+
+  async function render() {
+    const cfg = await invoke("get_config");
+    let mem = {};
+    let alive = {};
+    try {
+      const ui = await invoke("ui_state");
+      for (const u of ui) {
+        mem[u.id] = u.alive ? "" : t("settings.sleeping");
+        alive[u.id] = u.alive;
+      }
+    } catch (_) {}
+    try {
+      const hostMb = await invoke("host_memory_mb");
+      const appsMb = await invoke("apps_memory_mb");
+      $("host-mem").textContent = t("settings.host_mem", { mb: hostMb });
+      $("apps-mem").textContent = t("settings.apps_mem", { mb: appsMb });
+      $("total-mem").textContent = t("settings.total_mem", { mb: hostMb + appsMb });
+    } catch (_) {}
+    try {
+      const version = await invoke("get_app_version");
+      $("app-version").textContent = t("settings.app_version", { version });
+    } catch (_) {}
+    const table = $("list");
+    table.innerHTML = "";
+    cfg.instances.forEach((inst, idx) => {
+      const tr = document.createElement("tr");
+      const urlNote = inst.url ? ` <span style="color:#777">${inst.url}</span>` : "";
+      const statusParts = [];
+      if (inst.keep_awake) statusParts.push(`<span class="awake-tag">${t("settings.always_on")}</span>`);
+      if (mem[inst.id]) statusParts.push(`<span>${mem[inst.id]}</span>`);
+      tr.innerHTML =
+        `<td><span class="color-chip" style="background:${inst.color}"></span></td>` +
+        `<td>${inst.name}${urlNote}</td>` +
+        `<td style="color:#8a8c94;font-size:12px;white-space:nowrap">${statusParts.join(" ・ ")}</td>` +
+        `<td><span class="recipe-tag">${inst.recipe}</span></td>` +
+        `<td style="text-align:right;white-space:nowrap">` +
+        `<button class="ghost up" ${idx === 0 ? "disabled" : ""}>↑</button> ` +
+        `<button class="ghost down" ${idx === cfg.instances.length - 1 ? "disabled" : ""}>↓</button> ` +
+        `<button class="ghost reload" ${alive[inst.id] ? "" : "disabled"}>${t("settings.reload")}</button> ` +
+        `<button class="ghost reset-ext" title="${t("settings.reset_ext_title")}">${t("settings.reset_ext")}</button> ` +
+        `<button class="ghost edit">${t("settings.edit")}</button> ` +
+        `<button class="danger del">${t("settings.delete")}</button></td>`;
+      tr.querySelector(".up").addEventListener("click", async () => {
+        await invoke("move_instance", { id: inst.id, delta: -1 }).catch((e) => notify(String(e), true));
+        render();
+      });
+      tr.querySelector(".down").addEventListener("click", async () => {
+        await invoke("move_instance", { id: inst.id, delta: 1 }).catch((e) => notify(String(e), true));
+        render();
+      });
+      tr.querySelector(".reload").addEventListener("click", async () => {
+        try {
+          await invoke("reload_service", { id: inst.id });
+          notify(t("settings.reloaded", { name: inst.name }));
+        } catch (e) {
+          notify(String(e), true);
+        }
+      });
+      tr.querySelector(".reset-ext").addEventListener("click", async () => {
+        if (!confirm(t("settings.reset_ext_confirm", { name: inst.name }))) return;
+        try {
+          await invoke("reset_extension_state", { id: inst.id });
+          notify(t("settings.reset_ext_done", { name: inst.name }));
+        } catch (e) {
+          notify(String(e), true);
+        }
+        render();
+      });
+      tr.querySelector(".edit").addEventListener("click", () => startEdit(inst));
+      tr.querySelector(".del").addEventListener("click", async () => {
+        if (!confirm(t("settings.delete_confirm", { name: inst.name }))) return;
+        try {
+          await invoke("remove_instance", { id: inst.id });
+          if (editingId === inst.id) endEdit();
+          notify(t("settings.deleted"));
+        } catch (e) {
+          notify(String(e), true);
+        }
+        render();
+      });
+      table.appendChild(tr);
+    });
+    $("sleep-min").value = cfg.settings.sleep_after_minutes;
+    $("g-autostart").checked = cfg.settings.autostart;
+    $("g-minimized").checked = cfg.settings.start_minimized;
+    $("g-tray").checked = cfg.settings.close_to_tray;
+    $("g-notify").checked = cfg.settings.notifications;
+    $("g-language").value = cfg.settings.language;
+    $("g-notify-sound").checked = cfg.settings.notification_sound;
+    updateNotifySoundLabel(cfg.settings.notification_sound_path);
+    $("g-staggered-startup").checked = cfg.settings.staggered_startup;
+    $("startup-delay").value = cfg.settings.startup_delay_seconds;
+  }
+
+  function updateNotifySoundLabel(path) {
+    $("notify-sound-current").textContent = path
+      ? t("settings.notify_sound_current", { name: path.split(/[\\/]/).pop() })
+      : t("settings.notify_sound_default");
+  }
+
+  $("recipe").addEventListener("change", (e) => {
+    $("url-row").style.display = e.target.value === "generic" ? "" : "none";
+    $("cw-token-row").style.display = e.target.value === "chatwork" ? "" : "none";
+    updateIconPreview({});
+  });
+
+  $("add").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("name").value.trim();
+    const color = $("color").value;
+    const url = $("url").value.trim() || null;
+    const keepAwake = $("keep-awake").checked;
+    const notifyMuted = $("notify-muted").checked;
+    const chatworkToken = $("cw-token").value.trim() || null;
+    const chromeUaVal = $("chrome-ua").value;
+    const chromeUa = chromeUaVal === "" ? null : chromeUaVal === "true";
+    const forceRenavigate = $("force-renavigate").checked;
+    if (!name) return;
+    try {
+      if (editingId) {
+        await invoke("update_instance", { id: editingId, name, color, url, keepAwake, notifyMuted, chatworkToken, customIcon, chromeUa, forceRenavigate });
+        notify(t("settings.updated"));
+        endEdit();
+      } else {
+        await invoke("add_instance", { recipe: $("recipe").value, name, color, url });
+        // add_instanceはkeep_awake/token/icon/UA偽装を受けないため追加後に反映
+        const cfg = await invoke("get_config");
+        const added = cfg.instances[cfg.instances.length - 1];
+        if (keepAwake || notifyMuted || chatworkToken || customIcon || chromeUa !== null || forceRenavigate) {
+          await invoke("update_instance", {
+            id: added.id, name: added.name, color: added.color,
+            url: added.url || null, keepAwake, notifyMuted, chatworkToken, customIcon, chromeUa, forceRenavigate,
+          });
+        }
+        $("name").value = "";
+        customIcon = null;
+        $("icon-file").value = "";
+        updateIconPreview({});
+        notify(t("settings.added"));
+      }
+    } catch (e2) {
+      notify(String(e2), true);
+    }
+    render();
+  });
+
+  $("cancel-edit").addEventListener("click", endEdit);
+
+  async function renderExtensions() {
+    const exts = await invoke("get_extensions");
+    const table = $("ext-list");
+    table.innerHTML = "";
+    if (exts.length === 0) {
+      table.innerHTML =
+        `<tr><td style="color:#777">${t("settings.no_extensions")}</td></tr>`;
+      return;
+    }
+    for (const ext of exts) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        `<td>${ext.name}</td>` +
+        `<td style="color:#777">${ext.version}</td>` +
+        `<td><span class="recipe-tag">MV${ext.manifest_version}</span></td>` +
+        `<td style="color:#777;font-size:12px">${ext.description.slice(0, 50)}</td>` +
+        `<td style="text-align:right;white-space:nowrap"><button class="danger" style="white-space:nowrap">${t("settings.delete")}</button></td>`;
+      tr.querySelector("button").addEventListener("click", async () => {
+        if (!confirm(t("settings.ext_delete_confirm", { name: ext.name }))) return;
+        try {
+          await invoke("remove_extension", { path: ext.path });
+          notify(t("settings.ext_deleted"));
+        } catch (e) {
+          notify(String(e), true);
+        }
+        renderExtensions();
+      });
+      table.appendChild(tr);
+    }
+  }
+
+  $("cws-install").addEventListener("click", async () => {
+    const input = $("cws-input").value.trim();
+    if (!input) return notify(t("settings.cws_input_required"), true);
+    $("cws-install").disabled = true;
+    notify(t("settings.cws_downloading"));
+    try {
+      const id = await invoke("install_extension_from_cws", { idOrUrl: input });
+      $("cws-input").value = "";
+      notify(t("settings.cws_installed", { id }));
+    } catch (e) {
+      notify(String(e), true);
+    }
+    $("cws-install").disabled = false;
+    renderExtensions();
+  });
+
+  $("open-ext-dir").addEventListener("click", async () => {
+    try {
+      await invoke("open_extensions_dir");
+    } catch (e) {
+      notify(String(e), true);
+    }
+  });
+
+  $("reload-ext").addEventListener("click", async () => {
+    $("reload-ext").disabled = true;
+    notify(t("settings.ext_checking"));
+    try {
+      const updated = await invoke("update_extensions");
+      notify(updated.length > 0 ? t("settings.ext_updated", { list: updated.join(", ") }) : t("settings.ext_no_update"));
+    } catch (e) {
+      notify(String(e), true);
+    }
+    $("reload-ext").disabled = false;
+    renderExtensions();
+  });
+
+  async function saveGeneral() {
+    const v = parseInt($("sleep-min").value, 10);
+    if (Number.isNaN(v) || v < 0) return notify(t("settings.sleep_min_invalid"), true);
+    const delay = parseInt($("startup-delay").value, 10);
+    if (Number.isNaN(delay) || delay < 0) return notify(t("settings.startup_delay_invalid"), true);
+    try {
+      await invoke("update_settings", {
+        sleepAfterMinutes: v,
+        closeToTray: $("g-tray").checked,
+        startMinimized: $("g-minimized").checked,
+        autostart: $("g-autostart").checked,
+        notifications: $("g-notify").checked,
+        language: $("g-language").value,
+        notificationSound: $("g-notify-sound").checked,
+        staggeredStartup: $("g-staggered-startup").checked,
+        startupDelaySeconds: delay,
+      });
+      await window.reloadI18n();
+      notify(t("settings.saved"));
+      render();
+      renderExtensions();
+    } catch (e) {
+      notify(String(e), true);
+    }
+  }
+
+  for (const id of ["g-autostart", "g-minimized", "g-tray", "g-notify", "g-notify-sound",
+    "g-language", "g-staggered-startup", "sleep-min", "startup-delay"]) {
+    $(id).addEventListener("change", saveGeneral);
+  }
+
+  $("notify-sound-select").addEventListener("click", async () => {
+    try {
+      const path = await invoke("select_notification_sound");
+      if (path) {
+        updateNotifySoundLabel(path);
+        notify(t("settings.notify_sound_selected"));
+      }
+    } catch (e) {
+      notify(String(e), true);
+    }
+  });
+
+  $("notify-sound-reset").addEventListener("click", async () => {
+    try {
+      await invoke("reset_notification_sound");
+      updateNotifySoundLabel("");
+      notify(t("settings.notify_sound_reset_done"));
+    } catch (e) {
+      notify(String(e), true);
+    }
+  });
+
+  $("notify-sound-test").addEventListener("click", async () => {
+    await invoke("test_notification_sound");
+  });
+
+  $("restart-app").addEventListener("click", async () => {
+    if (!confirm(t("settings.restart_confirm"))) return;
+    try {
+      await invoke("restart_app");
+    } catch (e) {
+      notify(String(e), true);
+    }
+  });
+
+  $("export-settings").addEventListener("click", async () => {
+    try {
+      const ok = await invoke("export_settings");
+      if (ok) notify(t("settings.export_done"));
+    } catch (e) {
+      notify(String(e), true);
+    }
+  });
+
+  $("import-settings").addEventListener("click", async () => {
+    if (!confirm(t("settings.import_confirm"))) return;
+    try {
+      const ok = await invoke("import_settings");
+      if (ok) {
+        notify(t("settings.import_done"));
+        await render();
+      }
+    } catch (e) {
+      notify(String(e), true);
+    }
+  });
+
+  $("refresh-mem").addEventListener("click", async () => {
+    try {
+      await invoke("refresh_memory_now");
+      await render();
+      notify(t("settings.mem_refreshed"));
+    } catch (e) {
+      notify(String(e), true);
+    }
+  });
+
+  window.startEditById = async (id) => {
+    const cfg = await invoke("get_config");
+    const inst = cfg.instances.find((i) => i.id === id);
+    if (inst) startEdit(inst);
+  };
+
+  updateIconPreview({});
+  window.i18nReady.then(() => {
+    document.title = t("settings.page_title");
+    render();
+    renderExtensions();
+  });
+  const editParam = new URLSearchParams(location.search).get("edit");
+  if (editParam) window.startEditById(editParam);
+</script>
+</body>
+</html>

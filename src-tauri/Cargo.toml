@@ -1,0 +1,24 @@
+[package]
+name = "ymb-thatuation"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["unstable", "tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-window-state = "2"
+sysinfo = "0.33"
+# Chrome拡張ロード用の生WebView2 COM API(wryと同一バージョンに固定すること)
+webview2-com = "0.38.2"
+windows = { version = "0.61", features = ["Win32_Media_Audio", "Win32_Foundation"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.dev]
+incremental = true

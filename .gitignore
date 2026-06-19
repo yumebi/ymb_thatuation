@@ -1,0 +1,11 @@
+/src-tauri/target/
+/src-tauri/gen/
+
+# C#/WPF
+/src-csharp/**/bin/
+/src-csharp/**/obj/
+/src-csharp/.vs/
+*.user
+
+# Inno Setupビルド出力
+/installer/Output/

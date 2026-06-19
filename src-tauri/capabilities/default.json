@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "App UI webview permissions",
+  "windows": ["main"],
+  "webviews": ["sidebar", "__settings"],
+  "permissions": ["core:default", "dialog:default"]
+}

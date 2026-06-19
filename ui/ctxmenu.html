@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>ctxmenu</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #2b2d34;
+    font-family: "Segoe UI", sans-serif;
+    user-select: none;
+    overflow: hidden;
+  }
+  .item {
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #c9cad1;
+    cursor: pointer;
+    white-space: nowrap;
+    box-sizing: border-box;
+    height: 32px;
+    display: flex;
+    align-items: center;
+  }
+  .item:hover { background: #41434d; color: #fff; }
+</style>
+</head>
+<body>
+<div id="menu"></div>
+<script src="i18n.js"></script>
+<script>
+  const invoke =
+    window.__TAURI__?.core?.invoke ??
+    (window.__TAURI_INTERNALS__
+      ? (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args)
+      : null);
+
+  const params = new URLSearchParams(location.search);
+  const id = params.get("id");
+  const alive = params.get("alive") === "true";
+
+  const menuEl = document.getElementById("menu");
+
+  (async () => {
+    await window.i18nReady;
+    const items = [];
+    if (alive) {
+      items.push([t("ctxmenu.sleep"), () => invoke("sleep_service", { id })]);
+      items.push([t("ctxmenu.reload"), () => invoke("reload_service", { id })]);
+    } else {
+      items.push([t("ctxmenu.wake_up"), () => invoke("activate", { id })]);
+    }
+    items.push([t("ctxmenu.edit"), () => invoke("open_settings", { editId: id })]);
+
+    for (const [label, handler] of items) {
+      const el = document.createElement("div");
+      el.className = "item";
+      el.textContent = label;
+      el.addEventListener("click", async () => {
+        try {
+          await handler();
+        } catch (e) {
+          console.error(e);
+        }
+        invoke("close_context_menu");
+      });
+      menuEl.appendChild(el);
+    }
+  })();
+
+  window.addEventListener("blur", () => {
+    invoke("close_context_menu");
+  });
+
+  document.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+  });
+</script>
+</body>
+</html>
