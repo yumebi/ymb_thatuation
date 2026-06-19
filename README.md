@@ -76,6 +76,10 @@ dotnet publish -c Release -r win-x64 --self-contained true
 ## 備考
 
 `src-tauri/` (Tauri + Rust による試作版)は未完成のため本リポジトリには含めていない。
+Tauri 2 + wry の `with_profile_name`(WebView2のProfileName指定、マルチインスタンスの
+プロファイル分離に必須)が現状devブランチのみで未リリースのため開発を一時保留している。
+これが正式リリースされ、マルチインスタンス関連機能を実装できるようになった時点で
+開発を再開する予定。
 
 ## ライセンス
 
