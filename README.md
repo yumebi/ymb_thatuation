@@ -72,3 +72,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
 ## 備考
 
 `src-tauri/` (Tauri + Rust による試作版)は未完成のため本リポジトリには含めていない。
+
+## ライセンス
+
+[MIT License](LICENSE)
