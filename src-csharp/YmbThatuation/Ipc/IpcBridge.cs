@@ -66,6 +66,7 @@ public class IpcBridge
                 "reset_notification_sound" => ResetNotificationSound(),
                 "test_notification_sound" => TestNotificationSound(),
                 "get_app_version" => GetAppVersion(),
+                "check_for_app_update" => await CheckForAppUpdate(),
                 _ => throw new InvalidOperationException($"未実装のコマンド: {command}"),
             };
 
@@ -309,6 +310,16 @@ public class IpcBridge
     {
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         return version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "?";
+    }
+
+    /// <summary>設定画面からの手動更新確認。</summary>
+    private async Task<object?> CheckForAppUpdate()
+    {
+        if (_instanceManager.UpdateCheck == null)
+        {
+            return new UpdateCheckResult { CurrentVersion = GetAppVersion(), LatestVersion = GetAppVersion() };
+        }
+        return await _instanceManager.UpdateCheck.CheckAsync();
     }
 
     /// <summary>本体を再起動する(Tauri版のrestart_app相当)。</summary>

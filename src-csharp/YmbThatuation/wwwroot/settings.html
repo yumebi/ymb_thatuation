@@ -221,6 +221,7 @@
   <h2 data-i18n="settings.host_heading">本体</h2>
   <div class="row">
     <span id="app-version" style="color:#8a8c94;font-size:12px"></span>
+    <button type="button" class="ghost" id="check-app-update" data-i18n="settings.check_update">更新を確認</button>
   </div>
   <div class="row">
     <button type="button" class="ghost" id="restart-app" data-i18n="settings.restart_app">本体を再起動</button>
@@ -646,6 +647,19 @@
 
   $("notify-sound-test").addEventListener("click", async () => {
     await invoke("test_notification_sound");
+  });
+
+  $("check-app-update").addEventListener("click", async () => {
+    $("check-app-update").disabled = true;
+    try {
+      const r = await invoke("check_for_app_update");
+      notify(r.update_available
+        ? t("settings.update_available", { version: r.latest_version })
+        : t("settings.no_update"));
+    } catch (e) {
+      notify(String(e), true);
+    }
+    $("check-app-update").disabled = false;
   });
 
   $("restart-app").addEventListener("click", async () => {

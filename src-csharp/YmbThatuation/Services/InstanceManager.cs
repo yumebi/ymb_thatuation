@@ -67,6 +67,7 @@ public class InstanceManager
     public TrayService? Tray { get; set; }
     public MemoryService? Memory { get; set; }
     public ExtensionsService? Extensions { get; set; }
+    public UpdateCheckService? UpdateCheck { get; set; }
 
     public InstanceManager(Grid contentHost, WebView2 welcomeWebView, WebView2 sidebarWebView, CoreWebView2Environment environment, ConfigStore configStore, string wwwrootDir, string virtualHost)
     {

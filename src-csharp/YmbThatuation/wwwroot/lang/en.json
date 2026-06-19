@@ -108,6 +108,9 @@
 
   "settings.host_heading": "Application",
   "settings.app_version": "Version: {version}",
+  "settings.check_update": "Check for updates",
+  "settings.update_available": "New version v{version} is available",
+  "settings.no_update": "You're on the latest version",
   "settings.restart_app": "Restart application",
   "settings.restart_confirm": "Restart the application?\nRunning services will be closed.",
   "settings.mem_refreshed": "Memory usage refreshed",

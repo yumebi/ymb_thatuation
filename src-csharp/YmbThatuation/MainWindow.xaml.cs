@@ -62,6 +62,7 @@ public partial class MainWindow : Window
         _instanceManager.Tray = _tray;
         _instanceManager.Memory = new MemoryService();
         _instanceManager.Extensions = new ExtensionsService(_configStore);
+        _instanceManager.UpdateCheck = new UpdateCheckService();
 
         SidebarWebView.CoreWebView2.AddHostObjectToScript("ymb", bridge);
         welcomeWebView.CoreWebView2.AddHostObjectToScript("ymb", bridge);
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
         _instanceManager.StartBackgroundTimer();
         _ = StartKeepAwakeSequenceAsync(_instanceManager, _configStore);
         _ = CheckExtensionUpdatesAsync(_instanceManager, _configStore, _tray);
+        _ = CheckAppUpdateAsync(_instanceManager, _configStore, _tray);
 
         if (_configStore.Get().Settings.StartMinimized)
         {
@@ -103,6 +105,33 @@ public partial class MainWindow : Window
         if (configStore.Get().Settings.Notifications)
         {
             tray?.ShowNotification("拡張機能を更新しました", string.Join("\n", updated));
+            tray?.PlayNotificationSound();
+        }
+    }
+
+    /// <summary>
+    /// 起動8秒後に本体の新バージョンを確認し、あれば通知する。
+    /// </summary>
+    private static async Task CheckAppUpdateAsync(InstanceManager instanceManager, ConfigStore configStore, TrayService? tray)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(8));
+        if (instanceManager.UpdateCheck == null) return;
+
+        UpdateCheckResult result;
+        try
+        {
+            result = await instanceManager.UpdateCheck.CheckAsync();
+        }
+        catch (Exception e)
+        {
+            System.Diagnostics.Debug.WriteLine($"[app-update] failed: {e.Message}");
+            return;
+        }
+        if (!result.UpdateAvailable) return;
+
+        if (configStore.Get().Settings.Notifications)
+        {
+            tray?.ShowNotification("新しいバージョンがあります", $"v{result.LatestVersion} (現在 v{result.CurrentVersion})");
             tray?.PlayNotificationSound();
         }
     }
