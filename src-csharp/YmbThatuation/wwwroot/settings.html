@@ -22,9 +22,37 @@
     padding: 2px 8px;
     font-size: 12px;
     color: #aeb0b8;
+    flex-shrink: 0;
   }
   .awake-tag { font-size: 11px; color: #e8a33d; }
-  .color-chip { width: 14px; height: 14px; border-radius: 50%; display: inline-block; vertical-align: -2px; }
+  .color-chip { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .svc-list { display: flex; flex-direction: column; }
+  .svc-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px;
+    border-bottom: 1px solid #2c2d33;
+  }
+  .svc-row:last-child { border-bottom: none; }
+  .svc-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #33353d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .svc-avatar img { width: 20px; height: 20px; object-fit: contain; }
+  .svc-avatar .svc-letter { font-size: 14px; font-weight: 600; color: #aeb0b8; }
+  .svc-info { flex: 1; min-width: 0; }
+  .svc-name-line { display: flex; align-items: center; gap: 6px; }
+  .svc-name { color: #e4e5ea; font-size: 14px; }
+  .svc-url { color: #777; font-size: 12px; }
+  .svc-status { color: #8a8c94; font-size: 12px; white-space: nowrap; margin-top: 2px; }
+  .svc-actions { display: flex; gap: 6px; flex-shrink: 0; }
   button {
     background: #3a5bbf;
     color: #fff;
@@ -83,7 +111,7 @@
     <span id="apps-mem" style="color:#8a8c94;font-size:12px;font-weight:normal"></span>
     <span id="total-mem" style="color:#8a8c94;font-size:12px;font-weight:normal"></span>
   </h2>
-  <table id="list"></table>
+  <div id="list" class="svc-list"></div>
 
   <h2 id="form-title" data-i18n="settings.add_service_title">サービスを追加</h2>
   <form id="add">
@@ -398,35 +426,50 @@
       const version = await invoke("get_app_version");
       $("app-version").textContent = t("settings.app_version", { version });
     } catch (_) {}
-    const table = $("list");
-    table.innerHTML = "";
+    const list = $("list");
+    list.innerHTML = "";
     cfg.instances.forEach((inst, idx) => {
-      const tr = document.createElement("tr");
-      const urlNote = inst.url ? ` <span style="color:#777">${inst.url}</span>` : "";
+      const row = document.createElement("div");
+      row.className = "svc-row";
+      const urlNote = inst.url ? `<span class="svc-url">${inst.url}</span>` : "";
       const statusParts = [];
       if (inst.keep_awake) statusParts.push(`<span class="awake-tag">${t("settings.always_on")}</span>`);
       if (mem[inst.id]) statusParts.push(`<span>${mem[inst.id]}</span>`);
-      tr.innerHTML =
-        `<td><span class="color-chip" style="background:${inst.color}"></span></td>` +
-        `<td>${inst.name}${urlNote}</td>` +
-        `<td style="color:#8a8c94;font-size:12px;white-space:nowrap">${statusParts.join(" ・ ")}</td>` +
-        `<td><span class="recipe-tag">${inst.recipe}</span></td>` +
-        `<td style="text-align:right;white-space:nowrap">` +
-        `<button class="ghost up" ${idx === 0 ? "disabled" : ""}>↑</button> ` +
-        `<button class="ghost down" ${idx === cfg.instances.length - 1 ? "disabled" : ""}>↓</button> ` +
-        `<button class="ghost reload" ${alive[inst.id] ? "" : "disabled"}>${t("settings.reload")}</button> ` +
-        `<button class="ghost reset-ext" title="${t("settings.reset_ext_title")}">${t("settings.reset_ext")}</button> ` +
-        `<button class="ghost edit">${t("settings.edit")}</button> ` +
-        `<button class="danger del">${t("settings.delete")}</button></td>`;
-      tr.querySelector(".up").addEventListener("click", async () => {
+      const iconSrc = inst.custom_icon || `icons/${inst.recipe}.svg`;
+      const letter = (inst.name || "?").trim().charAt(0).toUpperCase() || "?";
+      row.innerHTML =
+        `<div class="svc-avatar"><img alt="" style="display:none" /><span class="svc-letter" style="display:none"></span></div>` +
+        `<div class="svc-info">` +
+          `<div class="svc-name-line"><span class="svc-name">${inst.name}</span>` +
+          `<span class="color-chip" style="background:${inst.color}"></span>${urlNote}</div>` +
+          `<div class="svc-status">${statusParts.join(" ・ ")}</div>` +
+        `</div>` +
+        `<span class="recipe-tag">${inst.recipe}</span>` +
+        `<div class="svc-actions">` +
+          `<button class="ghost up" ${idx === 0 ? "disabled" : ""}>↑</button>` +
+          `<button class="ghost down" ${idx === cfg.instances.length - 1 ? "disabled" : ""}>↓</button>` +
+          `<button class="ghost reload" ${alive[inst.id] ? "" : "disabled"}>${t("settings.reload")}</button>` +
+          `<button class="ghost reset-ext" title="${t("settings.reset_ext_title")}">${t("settings.reset_ext")}</button>` +
+          `<button class="ghost edit">${t("settings.edit")}</button>` +
+          `<button class="danger del">${t("settings.delete")}</button>` +
+        `</div>`;
+
+      const img = row.querySelector(".svc-avatar img");
+      const letterEl = row.querySelector(".svc-letter");
+      img.onerror = () => { img.style.display = "none"; letterEl.style.display = ""; };
+      img.onload = () => { img.style.display = ""; letterEl.style.display = "none"; };
+      letterEl.textContent = letter;
+      img.src = iconSrc;
+
+      row.querySelector(".up").addEventListener("click", async () => {
         await invoke("move_instance", { id: inst.id, delta: -1 }).catch((e) => notify(String(e), true));
         render();
       });
-      tr.querySelector(".down").addEventListener("click", async () => {
+      row.querySelector(".down").addEventListener("click", async () => {
         await invoke("move_instance", { id: inst.id, delta: 1 }).catch((e) => notify(String(e), true));
         render();
       });
-      tr.querySelector(".reload").addEventListener("click", async () => {
+      row.querySelector(".reload").addEventListener("click", async () => {
         try {
           await invoke("reload_service", { id: inst.id });
           notify(t("settings.reloaded", { name: inst.name }));
@@ -434,7 +477,7 @@
           notify(String(e), true);
         }
       });
-      tr.querySelector(".reset-ext").addEventListener("click", async () => {
+      row.querySelector(".reset-ext").addEventListener("click", async () => {
         if (!confirm(t("settings.reset_ext_confirm", { name: inst.name }))) return;
         try {
           await invoke("reset_extension_state", { id: inst.id });
@@ -444,8 +487,8 @@
         }
         render();
       });
-      tr.querySelector(".edit").addEventListener("click", () => startEdit(inst));
-      tr.querySelector(".del").addEventListener("click", async () => {
+      row.querySelector(".edit").addEventListener("click", () => startEdit(inst));
+      row.querySelector(".del").addEventListener("click", async () => {
         if (!confirm(t("settings.delete_confirm", { name: inst.name }))) return;
         try {
           await invoke("remove_instance", { id: inst.id });
@@ -456,7 +499,7 @@
         }
         render();
       });
-      table.appendChild(tr);
+      list.appendChild(row);
     });
     $("sleep-min").value = cfg.settings.sleep_after_minutes;
     $("g-autostart").checked = cfg.settings.autostart;
