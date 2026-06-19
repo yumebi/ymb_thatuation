@@ -1,5 +1,5 @@
-/src-tauri/target/
-/src-tauri/gen/
+/src-tauri/
+/ui/
 
 # C#/WPF
 /src-csharp/**/bin/
