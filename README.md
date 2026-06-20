@@ -4,12 +4,20 @@ Ferdium 代替の軽量マルチサービス・メッセンジャーランチャ
 C# + WPF + WebView2(Microsoft Edge WebView2 Runtime)製。
 Chromium を同梱せず OS の WebView2 を共有するため、Electron系ツールより省メモリ。
 
-## 技術構成
+## 技術スタック
 
-- C# / .NET 8 (`net8.0-windows`) + WPF
-- WebView2 SDK: 1つの `CoreWebView2Environment` を共有し、サービス(インスタンス)ごとに
-  `CoreWebView2ControllerOptions.ProfileName` を分けることで Cookie / LocalStorage / 拡張機能設定を分離。
-- UI は `wwwroot/` 配下の静的HTML/CSS/JS(IPCは `window.chrome.webview.hostObjects.ymb` 経由)。
+- **言語/フレームワーク**: C# / .NET 8 (`net8.0-windows`) + WPF
+- **WebView2 SDK**(`Microsoft.Web.WebView2`): 1つの `CoreWebView2Environment` を共有し、
+  サービス(インスタンス)ごとに `CoreWebView2ControllerOptions.ProfileName` を分けることで
+  Cookie / LocalStorage / 拡張機能設定を分離。ランタイムはOS共有のEvergreen版を使用(同梱なし)。
+- **フロントエンド**: `wwwroot/` 配下の静的HTML/CSS/バニラJS(フレームワーク不使用)。
+  IPCは `window.chrome.webview.hostObjects.ymb` 経由のホストオブジェクト呼び出し。
+- **WMI連携**: `System.Management` でプロセスメモリ使用量を集計。
+- **テスト**: xUnit(`YmbThatuation.Tests`)。
+- **インストーラー**: Inno Setup(`installer/setup.iss`)。
+- **CI/CD**: GitHub Actions(`.github/workflows/release.yml`)、`v*`タグpushで
+  publish→インストーラービルド→GitHub Release公開まで自動化。
+- **設定/データ永続化**: JSON(`config.json`)、`%APPDATA%`配下に保存(DB不使用)。
 
 ## 主な機能
 
