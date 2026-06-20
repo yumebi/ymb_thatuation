@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - master
-    paths-ignore:
-      - 'README.md'
-      - 'LICENSE'
-      - '.github/**'
   workflow_dispatch: {}
 
 permissions:
