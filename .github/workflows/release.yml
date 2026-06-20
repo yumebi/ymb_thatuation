@@ -2,8 +2,12 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - master
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+      - '.github/**'
 
 permissions:
   contents: write
@@ -13,10 +17,63 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
+      - name: Run tests
+        run: dotnet test src-csharp/YmbThatuation.sln
+
+      - name: Compute next version
+        id: version
+        shell: pwsh
+        run: |
+          $csprojContent = Get-Content src-csharp/YmbThatuation/YmbThatuation.csproj -Raw
+          $current = [version]([regex]::Match($csprojContent, '<Version>([^<]+)</Version>').Groups[1].Value)
+
+          $tags = git tag --list 'v*' | ForEach-Object {
+            try { [version]($_ -replace '^v', '') } catch { $null }
+          } | Where-Object { $_ } | Sort-Object -Descending
+
+          $latestTag = if ($tags.Count -gt 0) { $tags[0] } else { [version]'0.0.0' }
+
+          if ($current -gt $latestTag) {
+            $next = $current
+          } else {
+            $next = [version]"$($latestTag.Major).$($latestTag.Minor).$($latestTag.Build + 1)"
+          }
+
+          $nextStr = "$($next.Major).$($next.Minor).$($next.Build)"
+          Write-Output "version=$nextStr" >> $env:GITHUB_OUTPUT
+
+      - name: Update version files
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+
+          (Get-Content version.json -Raw) -replace '"version":\s*"[^"]+"', "`"version`": `"$v`"" |
+            Set-Content version.json -NoNewline
+
+          (Get-Content src-csharp/YmbThatuation/YmbThatuation.csproj -Raw) -replace '<Version>[^<]+</Version>', "<Version>$v</Version>" |
+            Set-Content src-csharp/YmbThatuation/YmbThatuation.csproj -NoNewline
+
+          (Get-Content installer/setup.iss -Raw) -replace '#define MyAppVersion "[^"]+"', "#define MyAppVersion `"$v`"" |
+            Set-Content installer/setup.iss -NoNewline
+
+      - name: Commit version bump and tag
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json src-csharp/YmbThatuation/YmbThatuation.csproj installer/setup.iss
+          git commit -m "v${v}: バージョン更新 (CI自動)"
+          git tag "v$v"
+          git push origin HEAD:master
+          git push origin "v$v"
 
       - name: Publish self-contained win-x64
         run: dotnet publish src-csharp/YmbThatuation/YmbThatuation.csproj -c Release -r win-x64 --self-contained true
@@ -31,4 +88,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" installer/Output/*.exe --title "${{ github.ref_name }}" --generate-notes
+          $v = "${{ steps.version.outputs.version }}"
+          gh release create "v$v" installer/Output/*.exe --title "v$v" --generate-notes
