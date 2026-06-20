@@ -4,6 +4,12 @@ Ferdium 代替の軽量マルチサービス・メッセンジャーランチャ
 C# + WPF + WebView2(Microsoft Edge WebView2 Runtime)製。
 Chromium を同梱せず OS の WebView2 を共有するため、Electron系ツールより省メモリ。
 
+## ダウンロード
+
+ビルド不要で使う場合は [Releases](https://github.com/yumebi/ymb_thatuation/releases/latest) から
+`YmbThatuation-Setup-<version>.exe` をダウンロードして実行するだけでインストールできる
+(self-contained、.NETランタイム別途インストール不要)。
+
 ## 技術スタック
 
 - **言語/フレームワーク**: C# / .NET 8 (`net8.0-windows`) + WPF
