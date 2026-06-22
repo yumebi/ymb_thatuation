@@ -79,7 +79,6 @@ public partial class MainWindow : Window
         welcomeWebView.Source = new Uri($"https://{VirtualHost}/welcome.html");
 
         _instanceManager.StartBackgroundTimer();
-        _ = _instanceManager.EnsureSpareNewWindowAsync();
         _ = StartKeepAwakeSequenceAsync(_instanceManager, _configStore);
         _ = CheckExtensionUpdatesAsync(_instanceManager, _configStore, _tray);
         _ = CheckAppUpdateAsync(_instanceManager, _configStore, _tray);

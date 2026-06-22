@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -61,8 +60,6 @@ public class InstanceManager
     private WebView2? _settingsWebView;
     private System.Threading.Timer? _backgroundTimer;
     private int _backgroundTick;
-    private WebView2? _spareNewWindowWebView;
-    private Window? _spareNewWindowHost;
 
     public string? ActiveId { get; private set; }
     public string? PendingWakeId { get; private set; }
@@ -323,104 +320,25 @@ public class InstanceManager
     }
 
     /// <summary>
-    /// target="_blank"等の新規ウインドウ要求への対応。SlackハドルのようにJS側が
-    /// window.open()の戻り値(ウインドウ参照)を同期的に使うフローでは、外部ブラウザに
-    /// 逃がすとwindow.open()がnullを返してJS側が例外で止まってしまうため、
-    /// 事前に初期化済みの予備WebView2をe.NewWindowに割り当てて自前ウインドウとして開く。
-    /// (イベント発生中にEnsureCoreWebView2Asyncを呼ぶとハングする問題があったため、
-    /// 予備は事前に初期化しておくことでその場での初期化を避ける)
-    /// 予備が用意できていない場合のみ、フォールバックとして外部ブラウザで開く。
+    /// target="_blank"等の新規ウインドウ要求への対応。
+    /// SlackハドルのようにJSがwindow.open()の戻り値(ウインドウ参照)を同期的に使う
+    /// フロー(about:blankの空ポップアップを開いて後からJSで操作するパターン)では、
+    /// 外部ブラウザに逃がすとwindow.open()がnullを返してJS側が例外停止してしまう上、
+    /// e.NewWindowへの割り当て自体もこのアプリの環境ではハングすることを確認済み。
+    /// そのため、about:blank(URI無し)の場合はイベントを一切ハンドルせず、WebView2の
+    /// 既定ポップアップ作成に任せる(鍵マーク操作によるクラッシュはGetBrowserProcessIds
+    /// のtry-catchとOnProcessFailedのBrowserProcessExited処理で被害を抑えている)。
+    /// 実URLへの遷移(OAuth等)は引き続き外部ブラウザで開く。
     /// </summary>
     private void OnNewWindowRequested(CoreWebView2NewWindowRequestedEventArgs e)
     {
-        PopupDebugLog($"OnNewWindowRequested uri={e.Uri} spareNull={_spareNewWindowWebView == null}");
-        if (_spareNewWindowWebView == null || _spareNewWindowHost == null)
+        if (string.IsNullOrEmpty(e.Uri) || e.Uri == "about:blank")
         {
-            e.Handled = true;
-            OpenInExternalBrowser(e.Uri);
             return;
         }
 
         e.Handled = true;
-        var webview = _spareNewWindowWebView;
-        var host = _spareNewWindowHost;
-        _spareNewWindowWebView = null;
-        _spareNewWindowHost = null;
-
-        e.NewWindow = webview.CoreWebView2;
-        PopupDebugLog("e.NewWindow assigned");
-        host.Title = TryGetHost(e.Uri) ?? "YMB Thatuation";
-        host.Left = 100;
-        host.Top = 100;
-        host.ShowInTaskbar = true;
-        host.Visibility = Visibility.Visible;
-        host.Activate();
-        host.Closed += (_, _) => webview.Dispose();
-        PopupDebugLog("host shown");
-
-        _ = EnsureSpareNewWindowAsync();
-    }
-
-    private static string? TryGetHost(string? uri) =>
-        Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ? parsed.Host : null;
-
-    private static void PopupDebugLog(string message)
-    {
-        try
-        {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "jp.yumebi.thatuation-cs", "logs");
-            Directory.CreateDirectory(dir);
-            File.AppendAllText(
-                Path.Combine(dir, "popup-debug.log"),
-                $"[{DateTime.Now:HH:mm:ss.fff}] {message}{Environment.NewLine}");
-        }
-        catch
-        {
-            // ログ出力自体の失敗で本処理に影響を与えない。
-        }
-    }
-
-    /// <summary>
-    /// target="_blank"等の新規ウインドウ要求に即応するため、画面外に置いた非表示ウインドウで
-    /// WebView2を事前初期化しておく。NewWindowRequestedイベントの最中にEnsureCoreWebView2Async
-    /// を呼ぶとハングする問題があるため、事前初期化が必須。
-    /// </summary>
-    public async Task EnsureSpareNewWindowAsync()
-    {
-        if (_spareNewWindowWebView != null) return;
-        PopupDebugLog("EnsureSpareNewWindowAsync: start");
-
-        try
-        {
-            var webview = new WebView2();
-            var host = new Window
-            {
-                Width = 900,
-                Height = 700,
-                Left = -32000,
-                Top = -32000,
-                ShowInTaskbar = false,
-                ShowActivated = false,
-                Content = webview,
-            };
-            host.Show();
-            PopupDebugLog("EnsureSpareNewWindowAsync: host shown, calling EnsureCoreWebView2Async");
-
-            var options = _environment.CreateCoreWebView2ControllerOptions();
-            options.ProfileName = $"popup-{Guid.NewGuid():N}";
-            await webview.EnsureCoreWebView2Async(_environment, options);
-            PopupDebugLog("EnsureSpareNewWindowAsync: EnsureCoreWebView2Async returned");
-
-            _spareNewWindowWebView = webview;
-            _spareNewWindowHost = host;
-            PopupDebugLog("EnsureSpareNewWindowAsync: ready");
-        }
-        catch (Exception ex)
-        {
-            PopupDebugLog($"EnsureSpareNewWindowAsync: FAILED {ex}");
-        }
+        OpenInExternalBrowser(e.Uri);
     }
 
     /// <summary>
