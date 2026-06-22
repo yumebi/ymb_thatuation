@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -332,6 +333,7 @@ public class InstanceManager
     /// </summary>
     private void OnNewWindowRequested(CoreWebView2NewWindowRequestedEventArgs e)
     {
+        PopupDebugLog($"OnNewWindowRequested uri={e.Uri} spareNull={_spareNewWindowWebView == null}");
         if (_spareNewWindowWebView == null || _spareNewWindowHost == null)
         {
             e.Handled = true;
@@ -346,6 +348,7 @@ public class InstanceManager
         _spareNewWindowHost = null;
 
         e.NewWindow = webview.CoreWebView2;
+        PopupDebugLog("e.NewWindow assigned");
         host.Title = TryGetHost(e.Uri) ?? "YMB Thatuation";
         host.Left = 100;
         host.Top = 100;
@@ -353,12 +356,31 @@ public class InstanceManager
         host.Visibility = Visibility.Visible;
         host.Activate();
         host.Closed += (_, _) => webview.Dispose();
+        PopupDebugLog("host shown");
 
         _ = EnsureSpareNewWindowAsync();
     }
 
     private static string? TryGetHost(string? uri) =>
         Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ? parsed.Host : null;
+
+    private static void PopupDebugLog(string message)
+    {
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "jp.yumebi.thatuation-cs", "logs");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(
+                Path.Combine(dir, "popup-debug.log"),
+                $"[{DateTime.Now:HH:mm:ss.fff}] {message}{Environment.NewLine}");
+        }
+        catch
+        {
+            // ログ出力自体の失敗で本処理に影響を与えない。
+        }
+    }
 
     /// <summary>
     /// target="_blank"等の新規ウインドウ要求に即応するため、画面外に置いた非表示ウインドウで
@@ -368,26 +390,37 @@ public class InstanceManager
     public async Task EnsureSpareNewWindowAsync()
     {
         if (_spareNewWindowWebView != null) return;
+        PopupDebugLog("EnsureSpareNewWindowAsync: start");
 
-        var webview = new WebView2();
-        var host = new Window
+        try
         {
-            Width = 900,
-            Height = 700,
-            Left = -32000,
-            Top = -32000,
-            ShowInTaskbar = false,
-            ShowActivated = false,
-            Content = webview,
-        };
-        host.Show();
+            var webview = new WebView2();
+            var host = new Window
+            {
+                Width = 900,
+                Height = 700,
+                Left = -32000,
+                Top = -32000,
+                ShowInTaskbar = false,
+                ShowActivated = false,
+                Content = webview,
+            };
+            host.Show();
+            PopupDebugLog("EnsureSpareNewWindowAsync: host shown, calling EnsureCoreWebView2Async");
 
-        var options = _environment.CreateCoreWebView2ControllerOptions();
-        options.ProfileName = $"popup-{Guid.NewGuid():N}";
-        await webview.EnsureCoreWebView2Async(_environment, options);
+            var options = _environment.CreateCoreWebView2ControllerOptions();
+            options.ProfileName = $"popup-{Guid.NewGuid():N}";
+            await webview.EnsureCoreWebView2Async(_environment, options);
+            PopupDebugLog("EnsureSpareNewWindowAsync: EnsureCoreWebView2Async returned");
 
-        _spareNewWindowWebView = webview;
-        _spareNewWindowHost = host;
+            _spareNewWindowWebView = webview;
+            _spareNewWindowHost = host;
+            PopupDebugLog("EnsureSpareNewWindowAsync: ready");
+        }
+        catch (Exception ex)
+        {
+            PopupDebugLog($"EnsureSpareNewWindowAsync: FAILED {ex}");
+        }
     }
 
     /// <summary>
