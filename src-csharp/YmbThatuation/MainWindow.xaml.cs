@@ -27,6 +27,14 @@ public partial class MainWindow : Window
         var wwwroot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
         _configStore = new ConfigStore();
 
+        // 再インストール/バージョン更新でexeパスが変わった場合、レジストリRunキーが
+        // 古いパスのまま残って自動起動が効かなくなることがあるため、有効時は毎回
+        // 現在のexeパスで再登録して自己修復する。
+        if (_configStore.Get().Settings.Autostart)
+        {
+            AutostartService.SetEnabled(true);
+        }
+
         _windowState = new WindowStateService(_configStore);
         _windowState.Restore(this);
 

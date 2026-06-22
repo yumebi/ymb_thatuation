@@ -158,6 +158,7 @@ public class InstanceManager
             webview.CoreWebView2.ContextMenuRequested += (_, e) => OnContextMenuRequested(e);
             webview.CoreWebView2.ProcessFailed += (_, e) => OnProcessFailed(id, e);
             webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(e);
+            webview.CoreWebView2.PermissionRequested += (_, e) => OnPermissionRequested(e);
 
             await LoadExtensionsIntoAsync(webview);
 
@@ -327,6 +328,27 @@ public class InstanceManager
     {
         e.Handled = true;
         OpenInExternalBrowser(e.Uri);
+    }
+
+    /// <summary>
+    /// カメラ/マイクは既定では権限バーが出るだけで、枠なしウインドウだと見落とされ
+    /// Slackハドル等の通話機能が無反応に見える原因になるため自動許可する。
+    /// Web標準通知は独自の未読監視/トレイ通知と重複するため拒否する。
+    /// </summary>
+    private void OnPermissionRequested(CoreWebView2PermissionRequestedEventArgs e)
+    {
+        switch (e.PermissionKind)
+        {
+            case CoreWebView2PermissionKind.Camera:
+            case CoreWebView2PermissionKind.Microphone:
+                e.State = CoreWebView2PermissionState.Allow;
+                break;
+            case CoreWebView2PermissionKind.Notifications:
+                e.State = CoreWebView2PermissionState.Deny;
+                break;
+            default:
+                break;
+        }
     }
 
     /// <summary>
