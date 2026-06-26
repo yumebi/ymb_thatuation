@@ -159,6 +159,7 @@ public class InstanceManager
             webview.CoreWebView2.ProcessFailed += (_, e) => OnProcessFailed(id, e);
             webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(e);
             webview.CoreWebView2.PermissionRequested += (_, e) => OnPermissionRequested(e);
+            webview.CoreWebView2.DownloadStarting += (_, e) => OnDownloadStarting(e);
 
             await LoadExtensionsIntoAsync(webview);
 
@@ -339,6 +340,35 @@ public class InstanceManager
 
         e.Handled = true;
         OpenInExternalBrowser(e.Uri);
+    }
+
+    /// <summary>
+    /// 既定のWebView2はダウンロード中/完了のUIを一切出さないため、画面右下に
+    /// 進捗表示ウインドウを出す(クリックでフォルダを開く、完了後しばらくして自動で消える)。
+    /// </summary>
+    private void OnDownloadStarting(CoreWebView2DownloadStartingEventArgs e)
+    {
+        var op = e.DownloadOperation;
+        var fileName = System.IO.Path.GetFileName(op.ResultFilePath);
+        var win = new DownloadNotificationWindow(fileName);
+        win.Show();
+
+        op.BytesReceivedChanged += (_, _) =>
+            win.Dispatcher.Invoke(() => win.UpdateProgress(op.BytesReceived, op.TotalBytesToReceive));
+
+        op.StateChanged += (_, _) =>
+            win.Dispatcher.Invoke(() =>
+            {
+                switch (op.State)
+                {
+                    case CoreWebView2DownloadState.Completed:
+                        win.SetCompleted(op.ResultFilePath);
+                        break;
+                    case CoreWebView2DownloadState.Interrupted:
+                        win.SetInterrupted();
+                        break;
+                }
+            });
     }
 
     /// <summary>
