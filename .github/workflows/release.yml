@@ -40,7 +40,12 @@ jobs:
           if ($current -gt $latestTag) {
             $next = $current
           } else {
-            $next = [version]"$($latestTag.Major).$($latestTag.Minor).$($latestTag.Build + 1)"
+            $nextBuild = $latestTag.Build + 1
+            if ($nextBuild -gt 9) {
+              $next = [version]"$($latestTag.Major).$($latestTag.Minor + 1).0"
+            } else {
+              $next = [version]"$($latestTag.Major).$($latestTag.Minor).$nextBuild"
+            }
           }
 
           $nextStr = "$($next.Major).$($next.Minor).$($next.Build)"
