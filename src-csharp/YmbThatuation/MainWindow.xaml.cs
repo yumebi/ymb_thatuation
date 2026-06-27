@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private InstanceManager? _instanceManager;
     private TrayService? _tray;
     private WindowStateService? _windowState;
+    private uint _browserProcessId;
 
     public MainWindow()
     {
@@ -53,6 +54,7 @@ public partial class MainWindow : Window
         await SidebarWebView.EnsureCoreWebView2Async(environment, sidebarOptions);
         SidebarWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             VirtualHost, wwwroot, CoreWebView2HostResourceAccessKind.Allow);
+        _browserProcessId = (uint)SidebarWebView.CoreWebView2.BrowserProcessId;
 
         // 待機画面
         var welcomeWebView = new WebView2();
@@ -212,6 +214,8 @@ public partial class MainWindow : Window
         if (_tray == null || _tray.IsExiting)
         {
             _tray?.Dispose();
+            _instanceManager?.DisposeAll();
+            WaitForBrowserProcessExit();
             return;
         }
 
@@ -223,6 +227,27 @@ public partial class MainWindow : Window
         else
         {
             _tray.Dispose();
+            _instanceManager?.DisposeAll();
+            WaitForBrowserProcessExit();
+        }
+    }
+
+    /// <summary>
+    /// WebView2のDispose()はブラウザプロセスへ終了要求を送るだけで、実際の終了は非同期。
+    /// アプリ本体が先に終了するとmsedgewebview2.exeが孤児プロセスとして残るため、
+    /// 共有環境のブラウザプロセス本体が終了するまで(タイムアウト付きで)待つ。
+    /// </summary>
+    private void WaitForBrowserProcessExit()
+    {
+        if (_browserProcessId == 0) return;
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById((int)_browserProcessId);
+            process.WaitForExit(3000);
+        }
+        catch (ArgumentException)
+        {
+            // 既に終了している。
         }
     }
 }

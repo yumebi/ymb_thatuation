@@ -356,6 +356,32 @@ public class InstanceManager
         }
     }
 
+    /// <summary>
+    /// アプリ終了時に呼ぶ。生存中の全WebView2(サイドバー/待機画面/設定画面/各サービス)を
+    /// 明示的に破棄する。WPFのWindowが閉じてもWebView2のCoreWebView2Controllerは
+    /// 自動Disposeされず、msedgewebview2.exeの孤児プロセスが残留することがあるため。
+    /// </summary>
+    public void DisposeAll()
+    {
+        _backgroundTimer?.Dispose();
+        _backgroundTimer = null;
+
+        foreach (var webview in _webviews.Values)
+        {
+            webview.Dispose();
+        }
+        _webviews.Clear();
+        _containers.Clear();
+        _urlBars.Clear();
+        _urlBarRows.Clear();
+
+        _settingsWebView?.Dispose();
+        _settingsWebView = null;
+
+        _welcomeWebView.Dispose();
+        _sidebarWebView.Dispose();
+    }
+
     /// <summary>展開済みChrome拡張をWebView2プロファイルに読み込む。Tauri版のload_extensions_into相当。</summary>
     private async Task LoadExtensionsIntoAsync(WebView2 webview)
     {
