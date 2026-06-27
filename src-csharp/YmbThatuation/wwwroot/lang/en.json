@@ -1,6 +1,7 @@
 {
   "sidebar.ipc_disabled": "IPC disabled",
   "sidebar.settings": "Settings",
+  "sidebar.downloads": "Open downloads folder",
   "sidebar.asleep_suffix": "(Sleeping)",
 
   "ctxmenu.sleep": "Sleep",

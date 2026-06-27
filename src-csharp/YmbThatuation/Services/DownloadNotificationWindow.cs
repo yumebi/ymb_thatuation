@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace YmbThatuation.Services;
@@ -8,6 +9,7 @@ namespace YmbThatuation.Services;
 /// <summary>
 /// ファイルダウンロードの進捗を画面右下に表示する。既定のWebView2はダウンロード中/完了の
 /// UIを一切出さないため、完了したのかどうかが分からない問題への対処。
+/// クリックでダウンロード先フォルダを開ける(進行中でも可)。進行中は右上の✕でキャンセルできる。
 /// </summary>
 public class DownloadNotificationWindow : Window
 {
@@ -18,14 +20,19 @@ public class DownloadNotificationWindow : Window
 
     private static readonly List<DownloadNotificationWindow> Active = new();
 
+    private readonly string _filePath;
     private readonly TextBlock _nameText;
     private readonly System.Windows.Controls.ProgressBar _progressBar;
     private readonly TextBlock _statusText;
-    private string? _completedFilePath;
+    private readonly TextBlock _cancelButton;
+    private Action? _onCancel;
+    private bool _finished;
     private bool _closed;
 
-    public DownloadNotificationWindow(string fileName)
+    public DownloadNotificationWindow(string fileName, string filePath)
     {
+        _filePath = filePath;
+
         Width = WindowWidth;
         Height = WindowHeight;
         WindowStyle = WindowStyle.None;
@@ -35,7 +42,7 @@ public class DownloadNotificationWindow : Window
         Topmost = true;
         Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x25, 0x26, 0x2b));
 
-        var panel = new StackPanel { Margin = new Thickness(12, 8, 12, 8) };
+        var panel = new StackPanel { Margin = new Thickness(12, 8, 32, 8) };
         _nameText = new TextBlock
         {
             Foreground = System.Windows.Media.Brushes.White,
@@ -59,11 +66,33 @@ public class DownloadNotificationWindow : Window
         panel.Children.Add(_nameText);
         panel.Children.Add(_progressBar);
         panel.Children.Add(_statusText);
-        Content = panel;
 
-        MouseLeftButtonUp += (_, _) => OpenFolderIfCompleted();
+        _cancelButton = new TextBlock
+        {
+            Text = "✕",
+            FontSize = 12,
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8a, 0x8c, 0x94)),
+            Margin = new Thickness(0, 6, 8, 0),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        _cancelButton.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            _onCancel?.Invoke();
+        };
+
+        var grid = new Grid();
+        grid.Children.Add(panel);
+        grid.Children.Add(_cancelButton);
+        Content = grid;
+
+        MouseLeftButtonUp += (_, _) => OpenFolder();
         Loaded += (_, _) => Reposition();
     }
+
+    public void SetCancelAction(Action onCancel) => _onCancel = onCancel;
 
     public void UpdateProgress(long received, ulong? total)
     {
@@ -80,9 +109,10 @@ public class DownloadNotificationWindow : Window
         }
     }
 
-    public void SetCompleted(string filePath)
+    public void SetCompleted()
     {
-        _completedFilePath = filePath;
+        _finished = true;
+        _cancelButton.Visibility = Visibility.Collapsed;
         _progressBar.IsIndeterminate = false;
         _progressBar.Value = 100;
         _statusText.Text = "ダウンロード完了 ・ クリックでフォルダを開く";
@@ -91,7 +121,9 @@ public class DownloadNotificationWindow : Window
 
     public void SetInterrupted()
     {
-        _statusText.Text = "ダウンロードに失敗しました";
+        _finished = true;
+        _cancelButton.Visibility = Visibility.Collapsed;
+        _statusText.Text = "ダウンロードがキャンセル/失敗しました";
         _ = AutoCloseAfterAsync();
     }
 
@@ -101,11 +133,10 @@ public class DownloadNotificationWindow : Window
         CloseSelf();
     }
 
-    private void OpenFolderIfCompleted()
+    private void OpenFolder()
     {
-        if (_completedFilePath == null) return;
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_completedFilePath}\"") { UseShellExecute = true });
-        CloseSelf();
+        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_filePath}\"") { UseShellExecute = true });
+        if (_finished) CloseSelf();
     }
 
     private void Reposition()

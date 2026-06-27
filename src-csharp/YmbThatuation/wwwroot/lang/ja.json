@@ -1,6 +1,7 @@
 {
   "sidebar.ipc_disabled": "IPC無効",
   "sidebar.settings": "設定",
+  "sidebar.downloads": "ダウンロードフォルダを開く",
   "sidebar.asleep_suffix": "(スリープ中)",
 
   "ctxmenu.sleep": "スリープ",

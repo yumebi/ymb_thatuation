@@ -350,7 +350,8 @@ public class InstanceManager
     {
         var op = e.DownloadOperation;
         var fileName = System.IO.Path.GetFileName(op.ResultFilePath);
-        var win = new DownloadNotificationWindow(fileName);
+        var win = new DownloadNotificationWindow(fileName, op.ResultFilePath);
+        win.SetCancelAction(() => op.Cancel());
         win.Show();
 
         op.BytesReceivedChanged += (_, _) =>
@@ -362,7 +363,7 @@ public class InstanceManager
                 switch (op.State)
                 {
                     case CoreWebView2DownloadState.Completed:
-                        win.SetCompleted(op.ResultFilePath);
+                        win.SetCompleted();
                         break;
                     case CoreWebView2DownloadState.Interrupted:
                         win.SetInterrupted();

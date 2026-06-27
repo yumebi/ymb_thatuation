@@ -136,6 +136,7 @@
 <div id="bar">
   <div id="services"></div>
   <div id="status"></div>
+  <button class="tool" id="downloads" data-i18n-title="sidebar.downloads" title="ダウンロードフォルダを開く">⬇</button>
   <button class="tool" id="settings" data-i18n-title="sidebar.settings" title="設定">⚙</button>
 </div>
 <script src="i18n.js"></script>
@@ -249,6 +250,14 @@
   // アプリアイコンの独自右クリックメニュー以外では既定のWebコンテキストメニューを出さない
   document.addEventListener("contextmenu", (ev) => {
     ev.preventDefault();
+  });
+
+  document.getElementById("downloads").addEventListener("click", async () => {
+    try {
+      await invoke("open_downloads_dir");
+    } catch (e) {
+      showError(e);
+    }
   });
 
   document.getElementById("settings").addEventListener("click", async () => {

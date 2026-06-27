@@ -17,7 +17,8 @@ public class WindowStateService
         _path = Path.Combine(configStore.AppDataDir, "config", "window-state.json");
     }
 
-    public void Restore(Window window)
+    /// <summary>ウインドウ状態を復元し、前回アクティブだったサービスIdを返す(無ければnull)。</summary>
+    public string? Restore(Window window)
     {
         WindowGeometry? geometry;
         try
@@ -26,9 +27,9 @@ public class WindowStateService
         }
         catch
         {
-            return;
+            return null;
         }
-        if (geometry == null) return;
+        if (geometry == null) return null;
 
         if (geometry.Width > 0 && geometry.Height > 0)
         {
@@ -58,9 +59,11 @@ public class WindowStateService
             var max = main.SidebarColumn.MaxWidth;
             main.SidebarColumn.Width = new GridLength(Math.Clamp(sidebarWidth, min, max));
         }
+
+        return geometry.LastActiveId;
     }
 
-    public void Save(Window window)
+    public void Save(Window window, string? activeId)
     {
         var bounds = window.WindowState == WindowState.Normal
             ? new Rect(window.Left, window.Top, window.Width, window.Height)
@@ -74,6 +77,7 @@ public class WindowStateService
             Top = bounds.Top,
             Maximized = window.WindowState == WindowState.Maximized,
             SidebarWidth = window is MainWindow main ? main.SidebarColumn.Width.Value : null,
+            LastActiveId = activeId,
         };
 
         var dir = Path.GetDirectoryName(_path)!;
@@ -89,5 +93,6 @@ public class WindowStateService
         public double? Top { get; set; }
         public bool Maximized { get; set; }
         public double? SidebarWidth { get; set; }
+        public string? LastActiveId { get; set; }
     }
 }

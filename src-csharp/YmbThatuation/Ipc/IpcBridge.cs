@@ -58,6 +58,7 @@ public class IpcBridge
                 "update_extensions" => await UpdateExtensions(),
                 "remove_extension" => RemoveExtension(args),
                 "open_extensions_dir" => OpenExtensionsDir(),
+                "open_downloads_dir" => OpenDownloadsDir(),
                 "reset_extension_state" => await ResetExtensionState(args),
                 "restart_app" => RestartApp(),
                 "export_settings" => ExportSettings(),
@@ -262,6 +263,15 @@ public class IpcBridge
     private object? OpenExtensionsDir()
     {
         _instanceManager.Extensions?.OpenExtensionsDir();
+        return null;
+    }
+
+    /// <summary>WebView2の既定ダウンロード先(ユーザーのダウンロードフォルダ)を開く。</summary>
+    private static object? OpenDownloadsDir()
+    {
+        var dir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        System.Diagnostics.Process.Start("explorer.exe", dir);
         return null;
     }
 

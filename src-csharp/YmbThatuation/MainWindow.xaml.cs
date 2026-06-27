@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         }
 
         _windowState = new WindowStateService(_configStore);
-        _windowState.Restore(this);
+        var lastActiveId = _windowState.Restore(this);
 
         var webview2DataDir = Path.Combine(_configStore.AppDataDir, "webview2");
         var environmentOptions = new CoreWebView2EnvironmentOptions
@@ -79,7 +79,7 @@ public partial class MainWindow : Window
         welcomeWebView.Source = new Uri($"https://{VirtualHost}/welcome.html");
 
         _instanceManager.StartBackgroundTimer();
-        _ = StartKeepAwakeSequenceAsync(_instanceManager, _configStore);
+        _ = RestoreLastActiveAsync(_instanceManager, _configStore, lastActiveId);
         _ = CheckExtensionUpdatesAsync(_instanceManager, _configStore, _tray);
         _ = CheckAppUpdateAsync(_instanceManager, _configStore, _tray);
 
@@ -148,6 +148,20 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// keep_awakeサービスの起動完了後、前回終了時にアクティブだったサービスを表示する。
+    /// keep_awake起動シーケンスの中で他のサービスが表示状態を奪ってしまうため、
+    /// 最後にもう一度アクティブ化して画面に出す。
+    /// </summary>
+    private static async Task RestoreLastActiveAsync(InstanceManager instanceManager, ConfigStore configStore, string? lastActiveId)
+    {
+        await StartKeepAwakeSequenceAsync(instanceManager, configStore);
+        if (lastActiveId != null && configStore.Get().Instances.Any(i => i.Id == lastActiveId))
+        {
+            await instanceManager.ActivateAsync(lastActiveId);
+        }
+    }
+
+    /// <summary>
     /// 起動時、「スリープさせない」設定のサービスを起動する。
     /// 設定の「順次起動」が有効な場合は指定秒数間隔で順次起動し
     /// (一斉起動によるWebView2プロセス同時生成の負荷を避ける)、
@@ -178,7 +192,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
-        _windowState?.Save(this);
+        _windowState?.Save(this, _instanceManager?.ActiveId);
 
         if (_tray == null || _tray.IsExiting)
         {
