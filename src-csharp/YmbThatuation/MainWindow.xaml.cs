@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using YmbThatuation.Ipc;
@@ -188,6 +189,20 @@ public partial class MainWindow : Window
             }
             await instanceManager.ActivateAsync(ids[i]);
         }
+    }
+
+    private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (_configStore == null || !_configStore.Get().Settings.KeyboardShortcutsEnabled) return;
+        if (Keyboard.Modifiers != ModifierKeys.Control) return;
+        var index = e.Key switch
+        {
+            >= Key.D1 and <= Key.D9 => (int)e.Key - (int)Key.D1 + 1,
+            >= Key.NumPad1 and <= Key.NumPad9 => (int)e.Key - (int)Key.NumPad1 + 1,
+            _ => 0,
+        };
+        if (index == 0 || _instanceManager == null) return;
+        _ = _instanceManager.SelectByIndexAsync(index);
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)

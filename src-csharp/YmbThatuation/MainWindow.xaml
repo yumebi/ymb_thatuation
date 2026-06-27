@@ -9,7 +9,8 @@
         Title="YMB Thatuation" Height="800" Width="1200"
         Background="#0d0e12"
         Loaded="Window_Loaded"
-        Closing="MainWindow_Closing">
+        Closing="MainWindow_Closing"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
     <Window.TaskbarItemInfo>
         <TaskbarItemInfo />
     </Window.TaskbarItemInfo>

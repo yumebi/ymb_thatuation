@@ -59,6 +59,7 @@ public class IpcBridge
                 "remove_extension" => RemoveExtension(args),
                 "open_extensions_dir" => OpenExtensionsDir(),
                 "open_downloads_dir" => OpenDownloadsDir(),
+                "select_instance_by_index" => await SelectInstanceByIndex(args),
                 "reset_extension_state" => await ResetExtensionState(args),
                 "restart_app" => RestartApp(),
                 "export_settings" => ExportSettings(),
@@ -266,12 +267,18 @@ public class IpcBridge
         return null;
     }
 
-    /// <summary>WebView2の既定ダウンロード先(ユーザーのダウンロードフォルダ)を開く。</summary>
+    /// <summary>各サービスWebViewの実際のダウンロード先(InstanceManager.ActivateAsync参照)を開く。</summary>
     private static object? OpenDownloadsDir()
     {
-        var dir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-        System.Diagnostics.Process.Start("explorer.exe", dir);
+        System.Diagnostics.Process.Start("explorer.exe", PathUtil.GetDownloadsFolder());
+        return null;
+    }
+
+    /// <summary>サイドバー/待機画面/設定画面からのCtrl+1-9ショートカット用。</summary>
+    private async Task<object?> SelectInstanceByIndex(Dictionary<string, JsonElement> args)
+    {
+        var index = args.TryGetValue("index", out var indexEl) ? indexEl.GetInt32() : 0;
+        await _instanceManager.SelectByIndexAsync(index);
         return null;
     }
 
@@ -311,8 +318,13 @@ public class IpcBridge
             {
                 c.Settings.StartupDelaySeconds = (uint)delayEl.GetInt64();
             }
+            c.Settings.KeyboardShortcutsEnabled = GetBool(args, "keyboardShortcutsEnabled", c.Settings.KeyboardShortcutsEnabled);
+            c.Settings.ActiveRingStyle = GetOptionalString(args, "activeRingStyle") ?? c.Settings.ActiveRingStyle;
+            c.Settings.Theme = GetOptionalString(args, "theme") ?? c.Settings.Theme;
+            c.Settings.UrlBarEnabled = GetBool(args, "urlBarEnabled", c.Settings.UrlBarEnabled);
         });
         AutostartService.SetEnabled(_configStore.Get().Settings.Autostart);
+        _instanceManager.ApplyUrlBarVisibility();
         return null;
     }
 

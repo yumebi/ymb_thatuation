@@ -7,7 +7,7 @@
   html, body {
     margin: 0;
     height: 100%;
-    background: #1e1f24;
+    background: var(--bg-page, #1e1f24);
     font-family: "Segoe UI", sans-serif;
     user-select: none;
     overflow: hidden;
@@ -42,21 +42,20 @@
     min-height: var(--svc-size);
     border-radius: 10px;
     border: 2px solid transparent;
-    background: #33353d;
-    color: #c9cad1;
+    background: var(--bg-chip, #33353d);
+    color: var(--text-secondary, #c9cad1);
     font-size: calc(var(--svc-size) * 0.34);
     font-weight: 600;
     cursor: pointer;
     position: relative;
   }
-  .svc:hover { background: #41434d; }
+  .svc:hover { background: var(--bg-chip-hover, #41434d); }
   .svc.active {
     border: 2px solid transparent;
-    background: #2c3a55;
+    background: var(--accent-soft, #2c3a55);
     color: #fff;
   }
-  /* 虹色の枠。アニメーションなしの静止表示。2px帯のマスクで
-     conic-gradientを枠状にクリップする。 */
+  /* アクティブな枠のスタイル。data-ring-styleで切替(既定: rainbow)。 */
   .svc .ring { display: none; }
   .svc.active .ring {
     display: block;
@@ -87,6 +86,45 @@
       hsl(360, 100%, 65%)
     );
   }
+  html[data-ring-style="solid"] .svc.active .ring {
+    background: var(--accent, #3a5bbf);
+  }
+  html[data-ring-style="gradient"] .svc.active .ring {
+    background: linear-gradient(135deg, var(--accent, #3a5bbf), var(--success, #7fd0a0));
+  }
+  html[data-ring-style="none"] .svc.active .ring {
+    display: none;
+  }
+  html[data-ring-style="warm"] .svc.active .ring {
+    background: linear-gradient(135deg, #ff8a3d, #ff5b8d);
+  }
+  html[data-ring-style="cool"] .svc.active .ring {
+    background: linear-gradient(135deg, #3da8ff, #3dffd8);
+  }
+  html[data-ring-style="sunset"] .svc.active .ring {
+    background: linear-gradient(135deg, #7b3dff, #ff8a3d 50%, #ffd83d);
+  }
+  /* glow/dashed/doubleは枠用maskを使わず、ボタン自体のborder/box-shadowで表現する。 */
+  html[data-ring-style="glow"] .svc.active .ring,
+  html[data-ring-style="dashed"] .svc.active .ring,
+  html[data-ring-style="double"] .svc.active .ring {
+    display: none;
+  }
+  html[data-ring-style="glow"] .svc.active {
+    border-color: var(--accent, #3a5bbf);
+    box-shadow: 0 0 8px 2px var(--accent, #3a5bbf);
+  }
+  html[data-ring-style="dashed"] .svc.active {
+    border-style: dashed;
+    border-color: var(--accent, #3a5bbf);
+  }
+  html[data-ring-style="double"] .svc.active {
+    border-color: transparent;
+    box-shadow:
+      0 0 0 2px var(--accent, #3a5bbf),
+      0 0 0 4px var(--bg-page, #1e1f24),
+      0 0 0 6px var(--accent, #3a5bbf);
+  }
   .svc.asleep {
     opacity: 0.45;
     filter: grayscale(0.9);
@@ -99,17 +137,15 @@
     pointer-events: none;
   }
   .svc .badge {
+    display: none;
     position: absolute;
-    top: -6px;
-    right: -6px;
-    background: #e05d5d;
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
-    border-radius: 9px;
-    min-width: 12px;
-    padding: 2px 4px;
-    line-height: 1;
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    background: var(--danger, #e05d5d);
+    border-radius: 50%;
+    border: 2px solid var(--bg-page, #1e1f24);
   }
   .tool {
     width: var(--svc-size);
@@ -117,15 +153,15 @@
     min-height: var(--svc-size);
     border-radius: 10px;
     border: none;
-    background: #33353d;
-    color: #8a8c94;
+    background: var(--bg-chip, #33353d);
+    color: var(--text-muted, #8a8c94);
     font-size: calc(var(--svc-size) * 0.34);
     cursor: pointer;
   }
-  .tool:hover { background: #41434d; color: #fff; }
+  .tool:hover { background: var(--bg-chip-hover, #41434d); color: #fff; }
   #status {
     font-size: 10px;
-    color: #e05d5d;
+    color: var(--danger, #e05d5d);
     text-align: center;
     word-break: break-all;
     max-width: var(--svc-size);
@@ -139,6 +175,7 @@
   <button class="tool" id="downloads" data-i18n-title="sidebar.downloads" title="ダウンロードフォルダを開く">⬇</button>
   <button class="tool" id="settings" data-i18n-title="sidebar.settings" title="設定">⚙</button>
 </div>
+<script src="theme.js"></script>
 <script src="i18n.js"></script>
 <script>
   const statusEl = document.getElementById("status");
@@ -207,12 +244,7 @@
       ? inst.name
       : `${inst.name} ${window.t ? window.t("sidebar.asleep_suffix") : "(スリープ中)"}`;
     const badge = btn.querySelector(".badge");
-    if (inst.unread > 0) {
-      badge.textContent = inst.unread > 99 ? "99+" : inst.unread;
-      badge.style.display = "";
-    } else {
-      badge.style.display = "none";
-    }
+    badge.style.display = inst.unread > 0 ? "" : "none";
     btn.classList.toggle("active", inst.active);
     btn.classList.toggle("asleep", !inst.alive);
     return btn;
@@ -259,6 +291,26 @@
       showError(e);
     }
   });
+
+  document.addEventListener("keydown", (ev) => {
+    if (!ev.ctrlKey || ev.altKey || ev.metaKey) return;
+    const n = parseInt(ev.key, 10);
+    if (n >= 1 && n <= 9) {
+      invoke("select_instance_by_index", { index: n }).then(refresh).catch(() => {});
+    }
+  });
+
+  async function applyAppearance() {
+    try {
+      const cfg = await invoke("get_config");
+      window.ymbTheme.applyTheme(cfg.settings.theme);
+      window.ymbTheme.applyRingStyle(cfg.settings.active_ring_style);
+    } catch (e) {
+      // 無視(既定テーマのまま)
+    }
+  }
+  applyAppearance();
+  setInterval(applyAppearance, 2000);
 
   document.getElementById("settings").addEventListener("click", async () => {
     try {

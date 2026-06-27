@@ -7,8 +7,8 @@
   html, body {
     margin: 0;
     height: 100%;
-    background: #0d0e12;
-    color: #6a6d78;
+    background: var(--bg-page-deep, #0d0e12);
+    color: var(--text-muted, #6a6d78);
     font-family: "Segoe UI", sans-serif;
     user-select: none;
     overflow: hidden;
@@ -27,14 +27,14 @@
     margin: 0;
     font-size: 20px;
     font-weight: 600;
-    color: #aeb0b8;
+    color: var(--text-secondary, #aeb0b8);
     letter-spacing: 0.05em;
   }
   p {
     margin: 0;
     font-size: 13px;
     line-height: 1.8;
-    color: #5e616b;
+    color: var(--text-faint, #5e616b);
   }
   #wake {
     display: none;
@@ -70,6 +70,7 @@
   <p id="body" data-i18n-html="welcome.body">左のサイドバーからサービスを選んで起動してください<br>⚙ から設定を変更できます</p>
   <button id="wake"></button>
 </div>
+<script src="theme.js"></script>
 <script src="i18n.js"></script>
 <script>
   const invoke = (cmd, args) =>
@@ -118,6 +119,25 @@
       // 無視
     }
   }
+
+  document.addEventListener("keydown", (ev) => {
+    if (!ev.ctrlKey || ev.altKey || ev.metaKey) return;
+    const n = parseInt(ev.key, 10);
+    if (n >= 1 && n <= 9) {
+      invoke("select_instance_by_index", { index: n }).catch(() => {});
+    }
+  });
+
+  async function applyAppearance() {
+    try {
+      const cfg = await invoke("get_config");
+      window.ymbTheme.applyTheme(cfg.settings.theme);
+    } catch (e) {
+      // 無視(既定テーマのまま)
+    }
+  }
+  applyAppearance();
+  setInterval(applyAppearance, 2000);
 
   refresh();
   setInterval(refresh, 300);

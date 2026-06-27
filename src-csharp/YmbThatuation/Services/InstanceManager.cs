@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using YmbThatuation.Ipc;
@@ -46,6 +47,23 @@ public class InstanceManager
   report();
 })();";
 
+    /// <summary>
+    /// Ctrl+1〜9でサービスを切り替えるショートカット。サービスページ内にフォーカスが
+    /// あっても効くようにするため、各サービスのページにも注入する(無効時の判定は
+    /// SelectByIndexAsync側で行うため、ここでは常に注入してpostMessageするだけ)。
+    /// </summary>
+    private const string ShortcutScript = @"(function(){
+  if (window.__ymbShortcutScanStarted) return;
+  window.__ymbShortcutScanStarted = true;
+  document.addEventListener('keydown', function(e){
+    if (!e.ctrlKey || e.altKey || e.metaKey) return;
+    var n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 9) {
+      try { window.chrome.webview.postMessage({ type: 'shortcut', digit: n }); } catch (_) {}
+    }
+  }, true);
+})();";
+
     private readonly Grid _contentHost;
     private readonly WebView2 _welcomeWebView;
     private readonly WebView2 _sidebarWebView;
@@ -54,6 +72,9 @@ public class InstanceManager
     private readonly string _wwwrootDir;
     private readonly string _virtualHost;
     private readonly Dictionary<string, WebView2> _webviews = new();
+    private readonly Dictionary<string, Grid> _containers = new();
+    private readonly Dictionary<string, System.Windows.Controls.TextBox> _urlBars = new();
+    private readonly Dictionary<string, RowDefinition> _urlBarRows = new();
     private readonly Dictionary<string, uint> _unread = new();
     private readonly Dictionary<string, DateTime> _hiddenSince = new();
     private readonly Dictionary<string, bool> _mediaPlaying = new();
@@ -135,12 +156,30 @@ public class InstanceManager
             var inst = config.Instances.FirstOrDefault(i => i.Id == id)
                 ?? throw new InvalidOperationException($"インスタンスが見つかりません: {id}");
 
+            var container = new Grid();
+            var urlBarRow = new RowDefinition
+            {
+                Height = config.Settings.UrlBarEnabled ? GridLength.Auto : new GridLength(0),
+            };
+            container.RowDefinitions.Add(urlBarRow);
+            container.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            var homeUrl = Recipes.ResolveUrl(inst);
+
             webview = new WebView2();
-            _contentHost.Children.Add(webview);
+            Grid.SetRow(webview, 1);
+            var urlBarUi = BuildUrlBar(id, homeUrl, out var urlBar, out var reloadBtn);
+            container.Children.Add(urlBarUi);
+            container.Children.Add(webview);
+            _contentHost.Children.Add(container);
+            _containers[id] = container;
+            _urlBars[id] = urlBar;
+            _urlBarRows[id] = urlBarRow;
 
             var options = _environment.CreateCoreWebView2ControllerOptions();
             options.ProfileName = id;
             await webview.EnsureCoreWebView2Async(_environment, options);
+            webview.CoreWebView2.Profile.DefaultDownloadFolderPath = PathUtil.GetDownloadsFolder();
 
             var useChromeUa = inst.ChromeUa ?? Recipes.DefaultChromeUa(inst.Recipe);
             if (useChromeUa)
@@ -153,6 +192,7 @@ public class InstanceManager
                 OnTitleChanged(id, webview.CoreWebView2.DocumentTitle);
 
             await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(MediaPlaybackScript);
+            await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(ShortcutScript);
             webview.CoreWebView2.WebMessageReceived += (_, e) => OnWebMessageReceived(id, e);
 
             webview.CoreWebView2.ContextMenuRequested += (_, e) => OnContextMenuRequested(e);
@@ -160,16 +200,160 @@ public class InstanceManager
             webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(e);
             webview.CoreWebView2.PermissionRequested += (_, e) => OnPermissionRequested(e);
             webview.CoreWebView2.DownloadStarting += (_, e) => OnDownloadStarting(e);
+            webview.CoreWebView2.SourceChanged += (_, _) => urlBar.Text = webview.Source.ToString();
+            webview.CoreWebView2.NavigationStarting += (_, _) =>
+            {
+                reloadBtn.Content = "✕";
+                if (reloadBtn.Tag is string[] labels) reloadBtn.ToolTip = labels[1];
+            };
+            webview.CoreWebView2.NavigationCompleted += (_, _) =>
+            {
+                reloadBtn.Content = "⟳";
+                if (reloadBtn.Tag is string[] labels) reloadBtn.ToolTip = labels[0];
+            };
 
             await LoadExtensionsIntoAsync(webview);
 
-            webview.Source = new Uri(Recipes.ResolveUrl(inst));
+            webview.Source = new Uri(homeUrl);
+            urlBar.Text = webview.Source.ToString();
             _webviews[id] = webview;
         }
 
         HideOthers(id);
         ActiveId = id;
-        webview.Visibility = Visibility.Visible;
+        _containers[id].Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// URLバー(戻る/進む/ホーム/再読込(読込中は中止)/外部ブラウザ+アドレス欄)のUIを構築する。
+    /// 設定でOFFの場合は行の高さを0にして非表示にする(ActivateAsync/ApplyUrlBarVisibility参照)。
+    /// ボタンの配色は現在のテーマ(ThemePalette)に合わせる。
+    /// </summary>
+    private Grid BuildUrlBar(string id, string homeUrl, out System.Windows.Controls.TextBox urlBar, out System.Windows.Controls.Button reloadBtn)
+    {
+        var config = _configStore.Get();
+        var theme = ThemePalette.Get(config.Settings.Theme);
+        var t = Translations.Load(_wwwrootDir, config.Settings.Language);
+        var barBg = ToBrush(theme.Bar);
+        var btnBg = ToBrush(theme.Button);
+        var btnHoverBg = ToBrush(theme.ButtonHover);
+        var fg = ToBrush(theme.Text);
+        var borderBrush = ToBrush(theme.Border);
+
+        var bar = new Grid { Background = barBg, Height = 30 };
+        for (var i = 0; i < 5; i++)
+        {
+            bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        }
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var backBtn = new System.Windows.Controls.Button { Content = "◀", ToolTip = t.GetValueOrDefault("urlbar.back", "戻る") };
+        var fwdBtn = new System.Windows.Controls.Button { Content = "▶", ToolTip = t.GetValueOrDefault("urlbar.forward", "進む") };
+        var homeBtn = new System.Windows.Controls.Button { Content = "⌂", ToolTip = t.GetValueOrDefault("urlbar.home", "ホーム") };
+        var reloadButton = new System.Windows.Controls.Button { Content = "⟳" };
+        var externalBtn = new System.Windows.Controls.Button { Content = "↗", ToolTip = t.GetValueOrDefault("urlbar.open_external", "外部ブラウザで開く") };
+
+        var reloadLabel = t.GetValueOrDefault("urlbar.reload", "再読み込み");
+        var stopLabel = t.GetValueOrDefault("urlbar.stop", "読み込みを中止");
+        reloadButton.ToolTip = reloadLabel;
+        reloadButton.Tag = new[] { reloadLabel, stopLabel };
+        var textBox = new System.Windows.Controls.TextBox
+        {
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Padding = new Thickness(8, 0, 8, 0),
+            Margin = new Thickness(4, 4, 4, 4),
+            Background = btnBg,
+            Foreground = fg,
+            BorderBrush = borderBrush,
+            BorderThickness = new Thickness(1),
+            CaretBrush = fg,
+        };
+
+        var col = 0;
+        foreach (var btn in new[] { backBtn, fwdBtn, homeBtn, reloadButton, externalBtn })
+        {
+            StyleFlatButton(btn, btnBg, btnHoverBg, fg);
+            Grid.SetColumn(btn, col++);
+            bar.Children.Add(btn);
+        }
+        Grid.SetColumn(textBox, col);
+        bar.Children.Add(textBox);
+
+        backBtn.Click += (_, _) =>
+        {
+            if (_webviews.TryGetValue(id, out var wv) && wv.CoreWebView2.CanGoBack) wv.CoreWebView2.GoBack();
+        };
+        fwdBtn.Click += (_, _) =>
+        {
+            if (_webviews.TryGetValue(id, out var wv) && wv.CoreWebView2.CanGoForward) wv.CoreWebView2.GoForward();
+        };
+        homeBtn.Click += (_, _) =>
+        {
+            if (_webviews.TryGetValue(id, out var wv)) wv.CoreWebView2.Navigate(homeUrl);
+        };
+        reloadButton.Click += (_, _) =>
+        {
+            if (!_webviews.TryGetValue(id, out var wv)) return;
+            if ((string)reloadButton.Content == "✕") wv.CoreWebView2.Stop();
+            else wv.CoreWebView2.Reload();
+        };
+        externalBtn.Click += (_, _) =>
+        {
+            if (_webviews.TryGetValue(id, out var wv)) OpenInExternalBrowser(wv.Source?.ToString());
+        };
+        textBox.KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Enter) return;
+            if (!_webviews.TryGetValue(id, out var wv)) return;
+            var text = textBox.Text.Trim();
+            if (string.IsNullOrEmpty(text)) return;
+            if (!text.Contains("://")) text = "https://" + text;
+            if (Uri.TryCreate(text, UriKind.Absolute, out var uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                wv.CoreWebView2.Navigate(uri.ToString());
+            }
+        };
+
+        urlBar = textBox;
+        reloadBtn = reloadButton;
+        return bar;
+    }
+
+    /// <summary>Buttonの既定の立体的なWin32風枠を、テーマ配色のフラットな角丸ボタンに置き換える。</summary>
+    private static void StyleFlatButton(System.Windows.Controls.Button btn, System.Windows.Media.Brush bg, System.Windows.Media.Brush hoverBg, System.Windows.Media.Brush fg)
+    {
+        btn.Background = bg;
+        btn.Foreground = fg;
+        btn.BorderThickness = new Thickness(0);
+        btn.Cursor = System.Windows.Input.Cursors.Hand;
+        btn.FontSize = 13;
+        btn.Width = 32;
+        btn.Template = FlatButtonTemplate;
+        btn.MouseEnter += (_, _) => btn.Background = hoverBg;
+        btn.MouseLeave += (_, _) => btn.Background = bg;
+    }
+
+    private static ControlTemplate? _flatButtonTemplate;
+
+    private static ControlTemplate FlatButtonTemplate => _flatButtonTemplate ??= (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+        @"<ControlTemplate xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"" TargetType=""Button"">
+            <Border Background=""{TemplateBinding Background}"" CornerRadius=""4"" Margin=""2"">
+              <ContentPresenter HorizontalAlignment=""Center"" VerticalAlignment=""Center"" TextElement.Foreground=""{TemplateBinding Foreground}""/>
+            </Border>
+          </ControlTemplate>");
+
+    private static System.Windows.Media.Brush ToBrush(string hex) =>
+        new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex));
+
+    /// <summary>設定変更時、生存中の各サービスのURLバー表示/非表示を即時反映する。</summary>
+    public void ApplyUrlBarVisibility()
+    {
+        var enabled = _configStore.Get().Settings.UrlBarEnabled;
+        foreach (var row in _urlBarRows.Values)
+        {
+            row.Height = enabled ? GridLength.Auto : new GridLength(0);
+        }
     }
 
     /// <summary>展開済みChrome拡張をWebView2プロファイルに読み込む。Tauri版のload_extensions_into相当。</summary>
@@ -206,7 +390,12 @@ public class InstanceManager
     {
         if (_webviews.Remove(id, out var webview))
         {
-            _contentHost.Children.Remove(webview);
+            if (_containers.Remove(id, out var container))
+            {
+                _contentHost.Children.Remove(container);
+            }
+            _urlBars.Remove(id);
+            _urlBarRows.Remove(id);
             webview.Dispose();
         }
         ClearUnread(id);
@@ -233,7 +422,12 @@ public class InstanceManager
     {
         if (_webviews.Remove(id, out var webview))
         {
-            _contentHost.Children.Remove(webview);
+            if (_containers.Remove(id, out var container))
+            {
+                _contentHost.Children.Remove(container);
+            }
+            _urlBars.Remove(id);
+            _urlBarRows.Remove(id);
             webview.Dispose();
         }
         ClearUnread(id);
@@ -257,16 +451,40 @@ public class InstanceManager
         try
         {
             var json = JsonSerializer.Deserialize<JsonElement>(e.WebMessageAsJson);
-            if (json.TryGetProperty("type", out var typeEl) && typeEl.GetString() == "media"
-                && json.TryGetProperty("playing", out var playingEl))
+            if (!json.TryGetProperty("type", out var typeEl)) return;
+            switch (typeEl.GetString())
             {
-                _mediaPlaying[id] = playingEl.GetBoolean();
+                case "media":
+                    if (json.TryGetProperty("playing", out var playingEl))
+                    {
+                        _mediaPlaying[id] = playingEl.GetBoolean();
+                    }
+                    break;
+                case "shortcut":
+                    if (json.TryGetProperty("digit", out var digitEl))
+                    {
+                        _ = SelectByIndexAsync(digitEl.GetInt32());
+                    }
+                    break;
             }
         }
         catch (JsonException)
         {
             // 不正な形式のメッセージは無視。
         }
+    }
+
+    /// <summary>
+    /// Ctrl+1〜9ショートカット用。設定で無効化されていれば何もしない。
+    /// 1始まりのインデックスでconfig.Instancesの該当サービスを選択/起動する。
+    /// </summary>
+    public Task SelectByIndexAsync(int oneBasedIndex)
+    {
+        var config = _configStore.Get();
+        if (!config.Settings.KeyboardShortcutsEnabled) return Task.CompletedTask;
+
+        var inst = config.Instances.ElementAtOrDefault(oneBasedIndex - 1);
+        return inst == null ? Task.CompletedTask : SelectInstanceAsync(inst.Id);
     }
 
     private void OnTitleChanged(string id, string title)
@@ -310,7 +528,12 @@ public class InstanceManager
 
         if (_webviews.Remove(id, out var webview))
         {
-            _contentHost.Children.Remove(webview);
+            if (_containers.Remove(id, out var container))
+            {
+                _contentHost.Children.Remove(container);
+            }
+            _urlBars.Remove(id);
+            _urlBarRows.Remove(id);
             webview.Dispose();
         }
         if (ActiveId == id)
@@ -501,16 +724,16 @@ public class InstanceManager
 
     private void HideOthers(string? keep)
     {
-        foreach (var (otherId, webview) in _webviews)
+        foreach (var (otherId, container) in _containers)
         {
             if (otherId == keep)
             {
-                webview.Visibility = Visibility.Visible;
+                container.Visibility = Visibility.Visible;
                 _hiddenSince.Remove(otherId);
             }
             else
             {
-                webview.Visibility = Visibility.Collapsed;
+                container.Visibility = Visibility.Collapsed;
                 _hiddenSince.TryAdd(otherId, DateTime.UtcNow);
             }
         }

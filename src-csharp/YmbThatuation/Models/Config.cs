@@ -69,6 +69,18 @@ public class Settings
 
     [JsonPropertyName("startup_delay_seconds")]
     public uint StartupDelaySeconds { get; set; } = 8;
+
+    [JsonPropertyName("keyboard_shortcuts_enabled")]
+    public bool KeyboardShortcutsEnabled { get; set; }
+
+    [JsonPropertyName("active_ring_style")]
+    public string ActiveRingStyle { get; set; } = "rainbow";
+
+    [JsonPropertyName("theme")]
+    public string Theme { get; set; } = "dark";
+
+    [JsonPropertyName("url_bar_enabled")]
+    public bool UrlBarEnabled { get; set; }
 }
 
 public class Config

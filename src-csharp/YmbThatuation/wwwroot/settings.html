@@ -6,22 +6,22 @@
 <style>
   html, body {
     margin: 0;
-    background: #25262b;
-    color: #e4e5ea;
+    background: var(--bg-surface, #25262b);
+    color: var(--text-primary, #e4e5ea);
     font-family: "Segoe UI", sans-serif;
     font-size: 14px;
   }
   main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
   h1 { font-size: 18px; }
-  h2 { font-size: 15px; margin-top: 28px; border-bottom: 1px solid #3a3c44; padding-bottom: 6px; }
+  h2 { font-size: 15px; margin-top: 28px; border-bottom: 1px solid var(--border, #3a3c44); padding-bottom: 6px; }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 6px 8px; border-bottom: 1px solid #33353d; vertical-align: middle; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--border-soft, #33353d); vertical-align: middle; }
   .recipe-tag {
-    background: #33353d;
+    background: var(--bg-chip, #33353d);
     border-radius: 6px;
     padding: 2px 8px;
     font-size: 12px;
-    color: #aeb0b8;
+    color: var(--text-secondary, #aeb0b8);
     flex-shrink: 0;
   }
   .awake-tag { font-size: 11px; color: #e8a33d; }
@@ -29,8 +29,8 @@
   .svc-list {
     display: flex;
     flex-direction: column;
-    background: #1e1f24;
-    border: 1px solid #33353d;
+    background: var(--bg-surface-alt, #1e1f24);
+    border: 1px solid var(--border-soft, #33353d);
     border-radius: 10px;
     overflow: hidden;
   }
@@ -39,12 +39,12 @@
     align-items: center;
     gap: 12px;
     padding: 10px 12px;
-    border-bottom: 1px solid #2c2d33;
+    border-bottom: 1px solid var(--bg-row, #2c2d33);
   }
   .svc-row:last-child { border-bottom: none; }
   .section-card {
-    background: #1e1f24;
-    border: 1px solid #33353d;
+    background: var(--bg-surface-alt, #1e1f24);
+    border: 1px solid var(--border-soft, #33353d);
     border-radius: 10px;
     padding: 14px 16px;
     margin-top: 10px;
@@ -54,22 +54,22 @@
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: #33353d;
+    background: var(--bg-chip, #33353d);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
   }
   .svc-avatar img { width: 20px; height: 20px; object-fit: contain; }
-  .svc-avatar .svc-letter { font-size: 14px; font-weight: 600; color: #aeb0b8; }
+  .svc-avatar .svc-letter { font-size: 14px; font-weight: 600; color: var(--text-secondary, #aeb0b8); }
   .svc-info { flex: 1; min-width: 0; }
   .svc-name-line { display: flex; align-items: center; gap: 6px; }
-  .svc-name { color: #e4e5ea; font-size: 14px; }
-  .svc-url { color: #777; font-size: 12px; }
-  .svc-status { color: #8a8c94; font-size: 12px; white-space: nowrap; margin-top: 2px; }
+  .svc-name { color: var(--text-primary, #e4e5ea); font-size: 14px; }
+  .svc-url { color: var(--text-faint, #777); font-size: 12px; }
+  .svc-status { color: var(--text-muted, #8a8c94); font-size: 12px; white-space: nowrap; margin-top: 2px; }
   .svc-actions { display: flex; gap: 6px; flex-shrink: 0; }
   button {
-    background: #3a5bbf;
+    background: var(--accent, #3a5bbf);
     color: #fff;
     border: none;
     border-radius: 6px;
@@ -79,34 +79,34 @@
   }
   button:hover { filter: brightness(1.15); }
   button.danger { background: #84353a; }
-  button.ghost { background: #33353d; color: #c9cad1; padding: 5px 9px; }
+  button.ghost { background: var(--bg-chip, #33353d); color: var(--text-secondary, #c9cad1); padding: 5px 9px; }
   input, select {
-    background: #1e1f24;
-    color: #e4e5ea;
-    border: 1px solid #3a3c44;
+    background: var(--bg-surface-alt, #1e1f24);
+    color: var(--text-primary, #e4e5ea);
+    border: 1px solid var(--border, #3a3c44);
     border-radius: 6px;
     padding: 7px 9px;
     font-size: 13px;
     box-sizing: border-box;
   }
   .row { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
-  .tabs { display: flex; gap: 4px; margin-top: 16px; border-bottom: 1px solid #3a3c44; }
+  .tabs { display: flex; gap: 4px; margin-top: 16px; border-bottom: 1px solid var(--border, #3a3c44); }
   .tab-btn {
     background: none;
-    color: #aeb0b8;
+    color: var(--text-secondary, #aeb0b8);
     border: none;
     border-bottom: 2px solid transparent;
     border-radius: 0;
     padding: 8px 14px;
     font-size: 14px;
   }
-  .tab-btn:hover { filter: none; color: #e4e5ea; background: #2c2d33; }
-  .tab-btn.active { color: #fff; border-bottom-color: #3a5bbf; }
+  .tab-btn:hover { filter: none; color: var(--text-primary, #e4e5ea); background: var(--bg-row, #2c2d33); }
+  .tab-btn.active { color: #fff; border-bottom-color: var(--accent, #3a5bbf); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
-  #msg { color: #7fd0a0; font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+  #msg { color: var(--success, #7fd0a0); font-size: 13px; margin-top: 10px; min-height: 1.2em; }
   #msg.err { color: #e58c8c; }
-  label { color: #aeb0b8; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  label { color: var(--text-secondary, #aeb0b8); font-size: 13px; display: flex; align-items: center; gap: 6px; }
   input[type="checkbox"] { width: 16px; height: 16px; }
 </style>
 </head>
@@ -218,6 +218,48 @@
     </div>
   </div>
 
+  <h2 data-i18n="settings.appearance_heading">見た目</h2>
+  <div class="section-card">
+    <div class="row">
+      <label><span data-i18n="settings.theme_label">テーマ</span>
+        <select id="g-theme">
+          <option value="dark" data-i18n="settings.theme_dark">ダーク</option>
+          <option value="light" data-i18n="settings.theme_light">ライト</option>
+          <option value="slate" data-i18n="settings.theme_slate">スレート</option>
+          <option value="midnight" data-i18n="settings.theme_midnight">ミッドナイト</option>
+          <option value="forest" data-i18n="settings.theme_forest">フォレスト</option>
+          <option value="solarized-dark" data-i18n="settings.theme_solarized_dark">Solarized Dark</option>
+          <option value="solarized-light" data-i18n="settings.theme_solarized_light">Solarized Light</option>
+          <option value="high-contrast" data-i18n="settings.theme_high_contrast">ハイコントラスト</option>
+          <option value="sepia" data-i18n="settings.theme_sepia">セピア</option>
+          <option value="ocean" data-i18n="settings.theme_ocean">オーシャン</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <label><span data-i18n="settings.ring_style_label">アクティブアイコンの枠</span>
+        <select id="g-ring-style">
+          <option value="rainbow" data-i18n="settings.ring_style_rainbow">虹色</option>
+          <option value="solid" data-i18n="settings.ring_style_solid">単色</option>
+          <option value="gradient" data-i18n="settings.ring_style_gradient">グラデーション</option>
+          <option value="none" data-i18n="settings.ring_style_none">なし</option>
+          <option value="warm" data-i18n="settings.ring_style_warm">暖色グラデーション</option>
+          <option value="cool" data-i18n="settings.ring_style_cool">寒色グラデーション</option>
+          <option value="sunset" data-i18n="settings.ring_style_sunset">サンセット</option>
+          <option value="glow" data-i18n="settings.ring_style_glow">発光</option>
+          <option value="dashed" data-i18n="settings.ring_style_dashed">破線</option>
+          <option value="double" data-i18n="settings.ring_style_double">二重線</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="g-shortcuts" /><span data-i18n="settings.keyboard_shortcuts">Ctrl+1〜9でサービスを切り替える</span></label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="g-urlbar" /><span data-i18n="settings.url_bar_enabled">各サービスの上部にURLバーを表示する</span></label>
+    </div>
+  </div>
+
   <div class="section-card">
     <div class="row"><label><input type="checkbox" id="g-notify" /><span data-i18n="settings.notify">未読が増えたらデスクトップ通知を出す</span></label></div>
     <div class="row"><label><input type="checkbox" id="g-notify-sound" /><span data-i18n="settings.notify_sound">通知時にサウンドを再生する</span></label></div>
@@ -293,6 +335,7 @@
 
   <p id="msg"></p>
 </main>
+<script src="theme.js"></script>
 <script src="i18n.js"></script>
 <script>
   const invoke = (cmd, args) =>
@@ -541,6 +584,10 @@
     updateNotifySoundLabel(cfg.settings.notification_sound_path);
     $("g-staggered-startup").checked = cfg.settings.staggered_startup;
     $("startup-delay").value = cfg.settings.startup_delay_seconds;
+    $("g-theme").value = cfg.settings.theme;
+    $("g-ring-style").value = cfg.settings.active_ring_style;
+    $("g-shortcuts").checked = cfg.settings.keyboard_shortcuts_enabled;
+    $("g-urlbar").checked = cfg.settings.url_bar_enabled;
   }
 
   function updateNotifySoundLabel(path) {
@@ -685,8 +732,13 @@
         notificationSound: $("g-notify-sound").checked,
         staggeredStartup: $("g-staggered-startup").checked,
         startupDelaySeconds: delay,
+        theme: $("g-theme").value,
+        activeRingStyle: $("g-ring-style").value,
+        keyboardShortcutsEnabled: $("g-shortcuts").checked,
+        urlBarEnabled: $("g-urlbar").checked,
       });
       await window.reloadI18n();
+      window.ymbTheme.applyTheme($("g-theme").value);
       notify(t("settings.saved"));
       render();
       renderExtensions();
@@ -696,7 +748,8 @@
   }
 
   for (const id of ["g-autostart", "g-minimized", "g-tray", "g-notify", "g-notify-sound",
-    "g-language", "g-staggered-startup", "sleep-min", "startup-delay"]) {
+    "g-language", "g-staggered-startup", "sleep-min", "startup-delay",
+    "g-theme", "g-ring-style", "g-shortcuts", "g-urlbar"]) {
     $(id).addEventListener("change", saveGeneral);
   }
 
@@ -792,8 +845,10 @@
   };
 
   updateIconPreview({});
-  window.i18nReady.then(() => {
+  window.i18nReady.then(async () => {
     document.title = t("settings.page_title");
+    const cfg = await invoke("get_config");
+    window.ymbTheme.applyTheme(cfg.settings.theme);
     render();
     renderExtensions();
   });
