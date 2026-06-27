@@ -28,7 +28,7 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "デスクトップにアイコンを作成する"; GroupDescription: "追加のアイコン:"
+Name: "desktopicon"; Description: "{cm:DesktopIconDesc}"; GroupDescription: "{cm:AdditionalIconsGroup}"
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -39,6 +39,15 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+
+[CustomMessages]
+japanese.DesktopIconDesc=デスクトップにアイコンを作成する
+japanese.AdditionalIconsGroup=追加のアイコン:
+japanese.WebView2MissingPrompt=WebView2 Runtimeが見つかりません。本アプリの動作に必須です。%nダウンロードページを開きますか?(Windows 10/11でEdgeが入っていれば通常は既に導入済みです)
+
+english.DesktopIconDesc=Create a desktop icon
+english.AdditionalIconsGroup=Additional icons:
+english.WebView2MissingPrompt=WebView2 Runtime was not found. It is required for this app to work.%nOpen the download page now? (Usually already installed if Edge is present on Windows 10/11)
 
 [Code]
 const
@@ -62,8 +71,7 @@ var
 begin
   if (CurStep = ssPostInstall) and (not IsWebView2Installed) then
   begin
-    if MsgBox('WebView2 Runtimeが見つかりません。本アプリの動作に必須です。' + #13#10 +
-      'ダウンロードページを開きますか?(Windows 10/11でEdgeが入っていれば通常は既に導入済みです)',
+    if MsgBox(CustomMessage('WebView2MissingPrompt'),
       mbConfirmation, MB_YESNO) = IDYES then
       ShellExec('open', 'https://developer.microsoft.com/microsoft-edge/webview2/', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
   end;
