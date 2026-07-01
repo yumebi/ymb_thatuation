@@ -1,5 +1,5 @@
 #define MyAppName "YMB Thatuation"
-#define MyAppVersion "1.2.1"
+#define MyAppVersion "1.2.2"
 #define MyAppPublisher "yumebi"
 #define MyAppExeName "YmbThatuation.exe"
 #define PublishDir "..\src-csharp\YmbThatuation\bin\Release\net8.0-windows\win-x64\publish"
