@@ -9,6 +9,8 @@ namespace YmbThatuation.Services;
 /// </summary>
 public static class UnreadParser
 {
+    // 先頭アンカーは付けない。Gmailの実タイトルは"Inbox (3) - Gmail"のように未読数が
+    // 先頭に来ないため(task #53で確認済み)、アンカー化すると既存の検知が壊れる。
     private static readonly Regex UnreadRegex = new(@"\((\d+)\)", RegexOptions.Compiled);
 
     public static uint Parse(string title)
@@ -30,7 +32,14 @@ public static class UnreadParser
       // それを正として扱い、DOM走査による上書きは行わない。
       if (/\(\d+\)/.test(document.title)) return;
 
-      var els = document.querySelectorAll('[class*=""unread"" i], [aria-label*=""unread"" i], [aria-label*=""未読"" i]');
+      // タイトルに未読数を出さないサービス(Teams/Discord系UI等)向けのフォールバック。
+      // class/aria-label/data-testidに""unread""や""badge""/""count""を含む要素のうち、
+      // 中身が短い数字のみのものを未読バッジ候補とみなす(誤検知抑制のため3桁までに制限)。
+      var els = document.querySelectorAll(
+        '[class*=""unread"" i], [aria-label*=""unread"" i], [aria-label*=""未読"" i], ' +
+        '[data-testid*=""unread"" i], [class*=""badge"" i], [class*=""Badge""], ' +
+        '[data-testid*=""badge"" i], [class*=""notification-count"" i]'
+      );
       var best = 0;
       for (var i = 0; i < els.length; i++) {
         var t = (els[i].textContent || '').trim();
