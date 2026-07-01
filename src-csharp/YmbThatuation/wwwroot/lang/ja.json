@@ -11,6 +11,7 @@
   "ctxmenu.open_in_browser": "デフォルトブラウザで開く",
 
   "tray.show": "表示",
+  "tray.restart": "再起動",
   "tray.quit": "終了",
 
   "welcome.body": "左のサイドバーからサービスを選んで起動してください<br>⚙ から設定を変更できます",

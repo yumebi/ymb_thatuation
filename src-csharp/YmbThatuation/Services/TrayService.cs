@@ -36,6 +36,7 @@ public class TrayService : IDisposable
 
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add(t.GetValueOrDefault("tray.show", "Show"), null, (_, _) => ShowWindow());
+        menu.Items.Add(t.GetValueOrDefault("tray.restart", "Restart"), null, (_, _) => Restart());
         menu.Items.Add(t.GetValueOrDefault("tray.quit", "Quit"), null, (_, _) => Quit());
         _notifyIcon.ContextMenuStrip = menu;
         _notifyIcon.DoubleClick += (_, _) => ShowWindow();
@@ -52,6 +53,21 @@ public class TrayService : IDisposable
     {
         IsExiting = true;
         _window.Close();
+    }
+
+    /// <summary>
+    /// 別アプリ等が本アプリのmsedgewebview2.exeを巻き込んでkillした場合など、
+    /// 各サービスのWebView2が壊れて復旧できない状態からの回復手段。
+    /// 新規プロセスを起動してから現在のプロセスを終了する(IpcBridge.RestartApp相当)。
+    /// </summary>
+    private void Restart()
+    {
+        var exePath = Environment.ProcessPath;
+        if (exePath != null)
+        {
+            System.Diagnostics.Process.Start(exePath);
+        }
+        Quit();
     }
 
     public void UpdateOverlayBadge(int total)

@@ -11,6 +11,7 @@
   "ctxmenu.open_in_browser": "Open in default browser",
 
   "tray.show": "Show",
+  "tray.restart": "Restart",
   "tray.quit": "Quit",
 
   "welcome.body": "Select a service from the sidebar to start it.<br>Click ⚙ to open settings.",
