@@ -160,7 +160,7 @@ public partial class MainWindow : Window
         await StartKeepAwakeSequenceAsync(instanceManager, configStore);
         if (lastActiveId != null && configStore.Get().Instances.Any(i => i.Id == lastActiveId))
         {
-            await instanceManager.ActivateAsync(lastActiveId);
+            await ActivateWithRetryAsync(instanceManager, lastActiveId);
         }
     }
 
@@ -178,7 +178,7 @@ public partial class MainWindow : Window
 
         if (!settings.StaggeredStartup)
         {
-            await Task.WhenAll(ids.Select(instanceManager.ActivateAsync));
+            await Task.WhenAll(ids.Select(id => ActivateWithRetryAsync(instanceManager, id)));
             return;
         }
 
@@ -189,7 +189,36 @@ public partial class MainWindow : Window
             {
                 await Task.Delay(delay);
             }
-            await instanceManager.ActivateAsync(ids[i]);
+            await ActivateWithRetryAsync(instanceManager, ids[i]);
+        }
+    }
+
+    /// <summary>
+    /// 再起動直後等、他のサービスのWebView2プロセス生成と競合して一時的に失敗することがあるため、
+    /// 1回だけ間を置いて再試行する。ここで例外を握りつぶさないと、逐次起動ループでは1つの
+    /// 失敗が後続の全サービスの起動を止めてしまう(_ = RestoreLastActiveAsync(...)は
+    /// fire-and-forgetのため、例外はどこにも表示されず原因が分からなくなる)。
+    /// </summary>
+    private static async Task ActivateWithRetryAsync(InstanceManager instanceManager, string id)
+    {
+        try
+        {
+            await instanceManager.ActivateAsync(id);
+            return;
+        }
+        catch (Exception e)
+        {
+            System.Diagnostics.Debug.WriteLine($"[startup-activate] {id} failed, retrying: {e.Message}");
+        }
+
+        await Task.Delay(1000);
+        try
+        {
+            await instanceManager.ActivateAsync(id);
+        }
+        catch (Exception e)
+        {
+            System.Diagnostics.Debug.WriteLine($"[startup-activate] {id} failed again, giving up: {e.Message}");
         }
     }
 

@@ -176,41 +176,57 @@ public class InstanceManager
             _urlBars[id] = urlBar;
             _urlBarRows[id] = urlBarRow;
 
-            var options = _environment.CreateCoreWebView2ControllerOptions();
-            options.ProfileName = id;
-            await webview.EnsureCoreWebView2Async(_environment, options);
-            webview.CoreWebView2.Profile.DefaultDownloadFolderPath = PathUtil.GetDownloadsFolder();
-
-            var useChromeUa = inst.ChromeUa ?? Recipes.DefaultChromeUa(inst.Recipe);
-            if (useChromeUa)
+            try
             {
-                webview.CoreWebView2.Settings.UserAgent = Recipes.ChromeUserAgent;
+                var options = _environment.CreateCoreWebView2ControllerOptions();
+                options.ProfileName = id;
+                await webview.EnsureCoreWebView2Async(_environment, options);
+                webview.CoreWebView2.Profile.DefaultDownloadFolderPath = PathUtil.GetDownloadsFolder();
+
+                var useChromeUa = inst.ChromeUa ?? Recipes.DefaultChromeUa(inst.Recipe);
+                if (useChromeUa)
+                {
+                    webview.CoreWebView2.Settings.UserAgent = Recipes.ChromeUserAgent;
+                }
+
+                await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(UnreadParser.InjectedScript);
+                webview.CoreWebView2.DocumentTitleChanged += (_, _) =>
+                    OnTitleChanged(id, webview.CoreWebView2.DocumentTitle);
+
+                await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(MediaPlaybackScript);
+                await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(ShortcutScript);
+                webview.CoreWebView2.WebMessageReceived += (_, e) => OnWebMessageReceived(id, e);
+
+                webview.CoreWebView2.ContextMenuRequested += (_, e) => OnContextMenuRequested(e);
+                webview.CoreWebView2.ProcessFailed += (_, e) => OnProcessFailed(id, e);
+                webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(e);
+                webview.CoreWebView2.PermissionRequested += (_, e) => OnPermissionRequested(e);
+                webview.CoreWebView2.DownloadStarting += (_, e) => OnDownloadStarting(e);
+                webview.CoreWebView2.SourceChanged += (_, _) => urlBar.Text = webview.Source.ToString();
+                webview.CoreWebView2.NavigationStarting += (_, _) =>
+                {
+                    reloadBtn.Content = "✕";
+                    if (reloadBtn.Tag is string[] labels) reloadBtn.ToolTip = labels[1];
+                };
+                webview.CoreWebView2.NavigationCompleted += (_, _) =>
+                {
+                    reloadBtn.Content = "⟳";
+                    if (reloadBtn.Tag is string[] labels) reloadBtn.ToolTip = labels[0];
+                };
             }
-
-            await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(UnreadParser.InjectedScript);
-            webview.CoreWebView2.DocumentTitleChanged += (_, _) =>
-                OnTitleChanged(id, webview.CoreWebView2.DocumentTitle);
-
-            await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(MediaPlaybackScript);
-            await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(ShortcutScript);
-            webview.CoreWebView2.WebMessageReceived += (_, e) => OnWebMessageReceived(id, e);
-
-            webview.CoreWebView2.ContextMenuRequested += (_, e) => OnContextMenuRequested(e);
-            webview.CoreWebView2.ProcessFailed += (_, e) => OnProcessFailed(id, e);
-            webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(e);
-            webview.CoreWebView2.PermissionRequested += (_, e) => OnPermissionRequested(e);
-            webview.CoreWebView2.DownloadStarting += (_, e) => OnDownloadStarting(e);
-            webview.CoreWebView2.SourceChanged += (_, _) => urlBar.Text = webview.Source.ToString();
-            webview.CoreWebView2.NavigationStarting += (_, _) =>
+            catch
             {
-                reloadBtn.Content = "✕";
-                if (reloadBtn.Tag is string[] labels) reloadBtn.ToolTip = labels[1];
-            };
-            webview.CoreWebView2.NavigationCompleted += (_, _) =>
-            {
-                reloadBtn.Content = "⟳";
-                if (reloadBtn.Tag is string[] labels) reloadBtn.ToolTip = labels[0];
-            };
+                // WebView2生成の途中(EnsureCoreWebView2Async等)で失敗した場合、
+                // _webviews[id]は未登録のままだが_containers[id]等は登録済みのため、
+                // 呼び出し元の再試行時に古いcontainer/webviewがvisual treeとメモリに
+                // 残留してしまう(orphan leak)。ここで確実に後始末してから再スローする。
+                _containers.Remove(id);
+                _urlBars.Remove(id);
+                _urlBarRows.Remove(id);
+                _contentHost.Children.Remove(container);
+                webview.Dispose();
+                throw;
+            }
 
             await LoadExtensionsIntoAsync(webview);
 
