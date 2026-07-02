@@ -32,13 +32,14 @@ public static class UnreadParser
       // それを正として扱い、DOM走査による上書きは行わない。
       if (/\(\d+\)/.test(document.title)) return;
 
-      // タイトルに未読数を出さないサービス(Teams/Discord系UI等)向けのフォールバック。
-      // class/aria-label/data-testidに""unread""や""badge""/""count""を含む要素のうち、
-      // 中身が短い数字のみのものを未読バッジ候補とみなす(誤検知抑制のため3桁までに制限)。
+      // タイトルに未読数を出さないサービス向けのフォールバック。class/aria-label/data-testidに
+      // ""unread""を含む要素のうち、中身が短い数字のみのものを未読バッジ候補とみなす。
+      // ※""badge""/""count""等の汎用パターンは、Google Chat等のMaterial Design系UIで
+      // メンバー数やプレゼンス表示など未読と無関係な数字を大量に誤検知し、値が随時変動する
+      // ことで通知が延々と繰り返される不具合を起こしたため(2026-07検証で確認)含めない。
       var els = document.querySelectorAll(
         '[class*=""unread"" i], [aria-label*=""unread"" i], [aria-label*=""未読"" i], ' +
-        '[data-testid*=""unread"" i], [class*=""badge"" i], [class*=""Badge""], ' +
-        '[data-testid*=""badge"" i], [class*=""notification-count"" i]'
+        '[data-testid*=""unread"" i]'
       );
       var best = 0;
       for (var i = 0; i < els.length; i++) {
