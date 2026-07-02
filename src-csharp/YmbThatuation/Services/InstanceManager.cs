@@ -572,7 +572,13 @@ public class InstanceManager
         var inst = config.Instances.FirstOrDefault(i => i.Id == id);
         if (config.Settings.Notifications && count > prev && inst?.NotifyMuted != true)
         {
-            Tray?.ShowNotification(inst?.Name ?? id, $"未読 {count} 件");
+            // 通知バルーンをクリックしたら、ウインドウを前面に出して該当サービスを表示する
+            Tray?.ShowNotification(inst?.Name ?? id, $"未読 {count} 件", () =>
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    Tray?.ShowMainWindow();
+                    _ = ActivateAsync(id);
+                }));
             Tray?.PlayNotificationSound();
         }
     }

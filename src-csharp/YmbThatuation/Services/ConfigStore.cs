@@ -33,7 +33,16 @@ public class ConfigStore
         try
         {
             var json = File.ReadAllText(_configPath);
-            cfg = JsonSerializer.Deserialize<Config>(json) ?? Config.CreateDefault();
+            var loaded = JsonSerializer.Deserialize<Config>(json);
+            if (loaded is not null)
+            {
+                cfg = loaded;
+                BackupConfig(json);
+            }
+            else
+            {
+                cfg = Config.CreateDefault();
+            }
         }
         catch
         {
@@ -43,6 +52,35 @@ public class ConfigStore
 
         MigrateForceRenavigate(cfg);
         return cfg;
+    }
+
+    /// <summary>
+    /// 読み込みに成功した設定ファイルの生JSONを、既知の正常な状態のスナップショットとして
+    /// backupsフォルダへ保存する。世代管理として新しい10世代のみ残し、古いものは削除する。
+    /// 起動処理に影響させないため、失敗しても黙って無視する。
+    /// </summary>
+    private void BackupConfig(string json)
+    {
+        try
+        {
+            var backupDir = Path.Combine(Path.GetDirectoryName(_configPath)!, "backups");
+            Directory.CreateDirectory(backupDir);
+
+            var backupPath = Path.Combine(backupDir, $"config-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+            File.WriteAllText(backupPath, json);
+
+            var backups = Directory.GetFiles(backupDir, "config-*.json")
+                .OrderByDescending(f => f)
+                .Skip(10);
+            foreach (var old in backups)
+            {
+                File.Delete(old);
+            }
+        }
+        catch
+        {
+            // バックアップ失敗は起動処理に影響させない
+        }
     }
 
     /// <summary>

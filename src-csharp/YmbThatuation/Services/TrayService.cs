@@ -35,14 +35,14 @@ public class TrayService : IDisposable
         };
 
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add(t.GetValueOrDefault("tray.show", "Show"), null, (_, _) => ShowWindow());
+        menu.Items.Add(t.GetValueOrDefault("tray.show", "Show"), null, (_, _) => ShowMainWindow());
         menu.Items.Add(t.GetValueOrDefault("tray.restart", "Restart"), null, (_, _) => Restart());
         menu.Items.Add(t.GetValueOrDefault("tray.quit", "Quit"), null, (_, _) => Quit());
         _notifyIcon.ContextMenuStrip = menu;
-        _notifyIcon.DoubleClick += (_, _) => ShowWindow();
+        _notifyIcon.DoubleClick += (_, _) => ShowMainWindow();
     }
 
-    private void ShowWindow()
+    public void ShowMainWindow()
     {
         _window.Show();
         _window.WindowState = WindowState.Normal;
