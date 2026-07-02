@@ -81,6 +81,9 @@ public class Settings
 
     [JsonPropertyName("url_bar_enabled")]
     public bool UrlBarEnabled { get; set; }
+
+    [JsonPropertyName("unread_action")]
+    public string UnreadAction { get; set; } = "pulse";
 }
 
 public class Config

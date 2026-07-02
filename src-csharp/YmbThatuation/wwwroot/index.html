@@ -125,6 +125,31 @@
       0 0 0 4px var(--bg-page, #1e1f24),
       0 0 0 6px var(--accent, #3a5bbf);
   }
+  @keyframes ymb-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(224, 93, 93, 0.55); }
+    50% { box-shadow: 0 0 0 6px rgba(224, 93, 93, 0); }
+  }
+  @keyframes ymb-bounce {
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-6px); }
+    60% { transform: translateY(-3px); }
+  }
+  @keyframes ymb-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-3px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+  }
+  html[data-unread-action="pulse"] .svc.has-unread {
+    animation: ymb-pulse 1.8s ease-out infinite;
+  }
+  html[data-unread-action="bounce"] .svc.has-unread {
+    animation: ymb-bounce 1.6s ease-in-out infinite;
+  }
+  html[data-unread-action="shake"] .svc.has-unread {
+    animation: ymb-shake 1.6s ease-in-out infinite;
+  }
   .svc.asleep {
     opacity: 0.45;
     filter: grayscale(0.9);
@@ -245,6 +270,7 @@
       : `${inst.name} ${window.t ? window.t("sidebar.asleep_suffix") : "(スリープ中)"}`;
     const badge = btn.querySelector(".badge");
     badge.style.display = inst.unread > 0 ? "" : "none";
+    btn.classList.toggle("has-unread", inst.unread > 0);
     btn.classList.toggle("active", inst.active);
     btn.classList.toggle("asleep", !inst.alive);
     return btn;
@@ -305,6 +331,7 @@
       const cfg = await invoke("get_config");
       window.ymbTheme.applyTheme(cfg.settings.theme);
       window.ymbTheme.applyRingStyle(cfg.settings.active_ring_style);
+      window.ymbTheme.applyUnreadAction(cfg.settings.unread_action);
     } catch (e) {
       // 無視(既定テーマのまま)
     }

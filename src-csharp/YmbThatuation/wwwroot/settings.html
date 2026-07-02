@@ -253,6 +253,16 @@
       </label>
     </div>
     <div class="row">
+      <label><span data-i18n="settings.unread_action_label">未読時のアイコンアクション</span>
+        <select id="g-unread-action">
+          <option value="pulse" data-i18n="settings.unread_action_pulse">パルス(発光)</option>
+          <option value="bounce" data-i18n="settings.unread_action_bounce">バウンス</option>
+          <option value="shake" data-i18n="settings.unread_action_shake">シェイク</option>
+          <option value="none" data-i18n="settings.unread_action_none">なし</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
       <label><input type="checkbox" id="g-shortcuts" /><span data-i18n="settings.keyboard_shortcuts">Ctrl+1〜9でサービスを切り替える</span></label>
     </div>
     <div class="row">
@@ -586,6 +596,7 @@
     $("startup-delay").value = cfg.settings.startup_delay_seconds;
     $("g-theme").value = cfg.settings.theme;
     $("g-ring-style").value = cfg.settings.active_ring_style;
+    $("g-unread-action").value = cfg.settings.unread_action;
     $("g-shortcuts").checked = cfg.settings.keyboard_shortcuts_enabled;
     $("g-urlbar").checked = cfg.settings.url_bar_enabled;
   }
@@ -734,6 +745,7 @@
         startupDelaySeconds: delay,
         theme: $("g-theme").value,
         activeRingStyle: $("g-ring-style").value,
+        unreadAction: $("g-unread-action").value,
         keyboardShortcutsEnabled: $("g-shortcuts").checked,
         urlBarEnabled: $("g-urlbar").checked,
       });
@@ -749,7 +761,7 @@
 
   for (const id of ["g-autostart", "g-minimized", "g-tray", "g-notify", "g-notify-sound",
     "g-language", "g-staggered-startup", "sleep-min", "startup-delay",
-    "g-theme", "g-ring-style", "g-shortcuts", "g-urlbar"]) {
+    "g-theme", "g-ring-style", "g-unread-action", "g-shortcuts", "g-urlbar"]) {
     $(id).addEventListener("change", saveGeneral);
   }
 

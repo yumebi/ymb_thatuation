@@ -103,6 +103,11 @@
   "settings.ring_style_glow": "発光",
   "settings.ring_style_dashed": "破線",
   "settings.ring_style_double": "二重線",
+  "settings.unread_action_label": "未読時のアイコンアクション",
+  "settings.unread_action_pulse": "パルス(発光)",
+  "settings.unread_action_bounce": "バウンス",
+  "settings.unread_action_shake": "シェイク",
+  "settings.unread_action_none": "なし",
   "settings.keyboard_shortcuts": "Ctrl+1〜9でサービスを切り替える",
   "settings.url_bar_enabled": "各サービスの上部にURLバーを表示する",
 

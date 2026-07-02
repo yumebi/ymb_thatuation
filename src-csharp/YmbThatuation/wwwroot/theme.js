@@ -204,5 +204,9 @@
     document.documentElement.dataset.ringStyle = name || "rainbow";
   }
 
-  window.ymbTheme = { applyTheme, applyRingStyle, names: Object.keys(THEMES) };
+  function applyUnreadAction(name) {
+    document.documentElement.dataset.unreadAction = name || "pulse";
+  }
+
+  window.ymbTheme = { applyTheme, applyRingStyle, applyUnreadAction, names: Object.keys(THEMES) };
 })();

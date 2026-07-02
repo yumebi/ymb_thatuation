@@ -103,6 +103,11 @@
   "settings.ring_style_glow": "Glow",
   "settings.ring_style_dashed": "Dashed",
   "settings.ring_style_double": "Double line",
+  "settings.unread_action_label": "Unread icon action",
+  "settings.unread_action_pulse": "Pulse (glow)",
+  "settings.unread_action_bounce": "Bounce",
+  "settings.unread_action_shake": "Shake",
+  "settings.unread_action_none": "None",
   "settings.keyboard_shortcuts": "Switch services with Ctrl+1-9",
   "settings.url_bar_enabled": "Show a URL bar above each service",
 
