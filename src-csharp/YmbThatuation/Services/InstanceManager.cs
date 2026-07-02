@@ -233,11 +233,41 @@ public class InstanceManager
             webview.Source = new Uri(homeUrl);
             urlBar.Text = webview.Source.ToString();
             _webviews[id] = webview;
+
+            if (inst.ForceRenavigate)
+            {
+                ScheduleForceRenavigate(id, webview, homeUrl);
+            }
         }
 
         HideOthers(id);
         ActiveId = id;
         _containers[id].Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// 初回ナビゲーションがabout:blankのまま固まって画面が真っ白になることがある
+    /// (YouTube Music等)サービス向けの再ナビゲートキック。設定で有効化されている
+    /// 場合のみ、2秒待って明示的に再度Navigateし直す(Tauri版のforce_renavigate相当)。
+    /// このサービスが既にスリープ/削除/別サービスに切り替わっていた場合は何もしない。
+    /// </summary>
+    private void ScheduleForceRenavigate(string id, WebView2 webview, string homeUrl)
+    {
+        _ = Task.Delay(2000).ContinueWith(_ =>
+        {
+            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (!_webviews.TryGetValue(id, out var current) || current != webview) return;
+                try
+                {
+                    webview.CoreWebView2.Navigate(homeUrl);
+                }
+                catch
+                {
+                    // ブラウザプロセスが既に無効化されている等は無視(他の復旧経路に任せる)。
+                }
+            });
+        });
     }
 
     /// <summary>

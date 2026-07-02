@@ -84,6 +84,14 @@ public class Settings
 
     [JsonPropertyName("unread_action")]
     public string UnreadAction { get; set; } = "pulse";
+
+    /// <summary>
+    /// force_renavigate(真っ白画面の再読み込みキック)がC#移植版で未実装だった期間に
+    /// 作られたconfigに対する一度きりの移行フラグ。既にtrueなら再適用しない(ユーザーが
+    /// 個別に無効化した設定を勝手に戻さないため)。ConfigStore.Load参照。
+    /// </summary>
+    [JsonPropertyName("force_renavigate_migrated")]
+    public bool ForceRenavigateMigrated { get; set; }
 }
 
 public class Config
