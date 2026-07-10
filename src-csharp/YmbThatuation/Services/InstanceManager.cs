@@ -76,6 +76,8 @@ public class InstanceManager
     private readonly Dictionary<string, System.Windows.Controls.TextBox> _urlBars = new();
     private readonly Dictionary<string, RowDefinition> _urlBarRows = new();
     private readonly Dictionary<string, uint> _unread = new();
+    private readonly Dictionary<string, uint> _lastNotified = new();
+    private readonly Dictionary<string, DateTime> _zeroSince = new();
     private readonly Dictionary<string, DateTime> _hiddenSince = new();
     private readonly Dictionary<string, bool> _mediaPlaying = new();
     private WebView2? _settingsWebView;
@@ -511,6 +513,8 @@ public class InstanceManager
 
     private void ClearUnread(string id)
     {
+        _lastNotified.Remove(id);
+        _zeroSince.Remove(id);
         if (_unread.Remove(id))
         {
             Tray?.UpdateOverlayBadge(_unread.Values.Sum(v => (int)v));
@@ -568,10 +572,29 @@ public class InstanceManager
         _unread[id] = count;
         Tray?.UpdateOverlayBadge(_unread.Values.Sum(v => (int)v));
 
+        if (count == 0)
+        {
+            // 未読0への遷移時刻だけ記録する。Google Chat等のSPAは自前でタイトルを
+            // 頻繁に書き換えるため、注入スクリプトが付けた"(N)"が一時的に消えて
+            // 0に見えることがある。ここで通知基準値(_lastNotified)を下げると
+            // 直後の0→Nの揺れ戻りが毎回「新着」扱いになり通知が延々繰り返される。
+            _zeroSince.TryAdd(id, DateTime.UtcNow);
+            return;
+        }
+
+        // 未読0が一定時間続いた後の増加だけを「既読後の新着」とみなして基準値を
+        // リセットする。短時間で0→Nに戻った場合はタイトル書き換えによる揺れなので
+        // 基準値を維持し、同じ件数では再通知しない(件数が増えた場合のみ通知される)。
+        if (_zeroSince.Remove(id, out var since) && DateTime.UtcNow - since >= TimeSpan.FromSeconds(15))
+        {
+            _lastNotified.Remove(id);
+        }
+
         var config = _configStore.Get();
         var inst = config.Instances.FirstOrDefault(i => i.Id == id);
-        if (config.Settings.Notifications && count > prev && inst?.NotifyMuted != true)
+        if (config.Settings.Notifications && count > _lastNotified.GetValueOrDefault(id, 0u) && inst?.NotifyMuted != true)
         {
+            _lastNotified[id] = count;
             // 通知バルーンをクリックしたら、ウインドウを前面に出して該当サービスを表示する
             Tray?.ShowNotification(inst?.Name ?? id, $"未読 {count} 件", () =>
                 System.Windows.Application.Current?.Dispatcher.Invoke(() =>
