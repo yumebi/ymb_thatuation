@@ -2,7 +2,7 @@
 #define MyAppVersion "1.2.8"
 #define MyAppPublisher "yumebi"
 #define MyAppExeName "YmbThatuation.exe"
-#define PublishDir "..\src-csharp\YmbThatuation\bin\Release\net8.0-windows\win-x64\publish"
+#define PublishDir "..\src-csharp\YmbThatuation\bin\Release\net10.0-windows\win-x64\publish"
 
 [Setup]
 AppId={{16A514F7-6A93-4AA3-83CE-6B24120664FB}

@@ -763,7 +763,7 @@ public class InstanceManager
         var config = _configStore.Get();
         var t = Translations.Load(_wwwrootDir, config.Settings.Language);
 
-        var menu = new ContextMenu
+        var menu = new System.Windows.Controls.ContextMenu
         {
             PlacementTarget = _sidebarWebView,
             Placement = PlacementMode.RelativePoint,
@@ -786,9 +786,9 @@ public class InstanceManager
         await Task.CompletedTask;
     }
 
-    private static MenuItem MakeMenuItem(Dictionary<string, string> t, string key, Func<Task> action)
+    private static System.Windows.Controls.MenuItem MakeMenuItem(Dictionary<string, string> t, string key, Func<Task> action)
     {
-        var item = new MenuItem { Header = t.GetValueOrDefault(key, key) };
+        var item = new System.Windows.Controls.MenuItem { Header = t.GetValueOrDefault(key, key) };
         item.Click += async (_, _) => await action();
         return item;
     }
