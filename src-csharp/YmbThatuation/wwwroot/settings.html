@@ -187,6 +187,10 @@
     <div class="row">
       <label><input type="checkbox" id="force-renavigate" /><span data-i18n="settings.force_renavigate">読み込み画面が真っ白なまま固まる場合に再読み込みを試行する</span></label>
     </div>
+    <div class="row" style="flex-direction:column;align-items:flex-start;gap:4px">
+      <span data-i18n="settings.instance_extensions_label" style="color:#aeb0b8;font-size:13px">このサービスで有効にする拡張機能</span>
+      <div id="instance-ext-list" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
     <div class="row">
       <img id="icon-preview" alt="" style="width:28px;height:28px;object-fit:contain;border-radius:6px;background:#1e1f24" />
       <label class="ghost" style="cursor:pointer">
@@ -362,6 +366,7 @@
   const $ = (id) => document.getElementById(id);
   let editingId = null;
   let customIcon = null; // 選択中のカスタムアイコン(data URL) / null=未設定
+  let instanceExtSelection = []; // フォームで選択中の拡張機能(フォルダ名の配列)
 
   function notify(text, isErr) {
     msg.textContent = text;
@@ -394,6 +399,32 @@
     preview.onload = () => { preview.style.visibility = "visible"; };
   }
 
+  async function renderInstanceExtChecklist() {
+    const container = $("instance-ext-list");
+    const exts = await invoke("get_extensions");
+    container.innerHTML = "";
+    if (exts.length === 0) {
+      container.innerHTML = `<span style="color:#777;font-size:12px">${t("settings.no_extensions")}</span>`;
+      return;
+    }
+    for (const ext of exts) {
+      const folderName = ext.path.split(/[\\/]/).pop();
+      const label = document.createElement("label");
+      label.style.fontSize = "13px";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = instanceExtSelection.includes(folderName);
+      cb.addEventListener("change", () => {
+        instanceExtSelection = cb.checked
+          ? [...instanceExtSelection, folderName]
+          : instanceExtSelection.filter((n) => n !== folderName);
+      });
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(` ${ext.name}`));
+      container.appendChild(label);
+    }
+  }
+
   function startEdit(inst) {
     editingId = inst.id;
     $("form-title").textContent = t("settings.edit_service_title", { name: inst.name });
@@ -412,6 +443,8 @@
     customIcon = inst.custom_icon || null;
     $("icon-file").value = "";
     updateIconPreview(inst);
+    instanceExtSelection = inst.enabled_extensions || [];
+    renderInstanceExtChecklist();
     $("submit-btn").textContent = t("settings.update");
     $("cancel-edit").style.display = "";
     window.scrollTo({ top: $("form-title").offsetTop, behavior: "smooth" });
@@ -432,6 +465,8 @@
     customIcon = null;
     $("icon-file").value = "";
     updateIconPreview({});
+    instanceExtSelection = [];
+    renderInstanceExtChecklist();
     $("submit-btn").textContent = t("settings.add");
     $("cancel-edit").style.display = "none";
   }
@@ -627,24 +662,27 @@
     if (!name) return;
     try {
       if (editingId) {
-        await invoke("update_instance", { id: editingId, name, color, url, keepAwake, notifyMuted, chatworkToken, customIcon, chromeUa, forceRenavigate });
+        await invoke("update_instance", { id: editingId, name, color, url, keepAwake, notifyMuted, chatworkToken, customIcon, chromeUa, forceRenavigate, enabledExtensions: instanceExtSelection });
         notify(t("settings.updated"));
         endEdit();
       } else {
         await invoke("add_instance", { recipe: $("recipe").value, name, color, url });
-        // add_instanceはkeep_awake/token/icon/UA偽装を受けないため追加後に反映
+        // add_instanceはkeep_awake/token/icon/UA偽装/拡張選択を受けないため追加後に反映
         const cfg = await invoke("get_config");
         const added = cfg.instances[cfg.instances.length - 1];
-        if (keepAwake || notifyMuted || chatworkToken || customIcon || chromeUa !== null || forceRenavigate) {
+        if (keepAwake || notifyMuted || chatworkToken || customIcon || chromeUa !== null || forceRenavigate || instanceExtSelection.length > 0) {
           await invoke("update_instance", {
             id: added.id, name: added.name, color: added.color,
             url: added.url || null, keepAwake, notifyMuted, chatworkToken, customIcon, chromeUa, forceRenavigate,
+            enabledExtensions: instanceExtSelection,
           });
         }
         $("name").value = "";
         customIcon = null;
         $("icon-file").value = "";
         updateIconPreview({});
+        instanceExtSelection = [];
+        renderInstanceExtChecklist();
         notify(t("settings.added"));
       }
     } catch (e2) {
@@ -661,6 +699,7 @@
     list.innerHTML = "";
     if (exts.length === 0) {
       list.innerHTML = `<div class="svc-row" style="color:#777">${t("settings.no_extensions")}</div>`;
+      renderInstanceExtChecklist();
       return;
     }
     for (const ext of exts) {
@@ -688,6 +727,7 @@
       });
       list.appendChild(row);
     }
+    renderInstanceExtChecklist();
   }
 
   $("cws-install").addEventListener("click", async () => {

@@ -230,7 +230,7 @@ public class InstanceManager
                 throw;
             }
 
-            await LoadExtensionsIntoAsync(webview);
+            await LoadExtensionsIntoAsync(webview, inst);
 
             webview.Source = new Uri(homeUrl);
             urlBar.Text = webview.Source.ToString();
@@ -431,11 +431,12 @@ public class InstanceManager
     }
 
     /// <summary>展開済みChrome拡張をWebView2プロファイルに読み込む。Tauri版のload_extensions_into相当。</summary>
-    private async Task LoadExtensionsIntoAsync(WebView2 webview)
+    private async Task LoadExtensionsIntoAsync(WebView2 webview, InstanceCfg inst)
     {
-        if (Extensions == null) return;
+        if (Extensions == null || inst.EnabledExtensions.Count == 0) return;
         foreach (var ext in Extensions.ScanExtensions())
         {
+            if (!inst.EnabledExtensions.Contains(System.IO.Path.GetFileName(ext.Path))) continue;
             try
             {
                 await webview.CoreWebView2.Profile.AddBrowserExtensionAsync(ext.Path);

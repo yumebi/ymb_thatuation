@@ -36,6 +36,14 @@ public class InstanceCfg
 
     [JsonPropertyName("notify_muted")]
     public bool NotifyMuted { get; set; }
+
+    /// <summary>
+    /// このサービスに読み込む拡張機能(フォルダ名の一覧)。既定は空、つまり無効。
+    /// 拡張機能は各サービスのWebView2プロファイルにロードされるとメモリを消費するため、
+    /// 全サービス一律ロードではなく、サービスごとに明示的に有効化する方式にしている。
+    /// </summary>
+    [JsonPropertyName("enabled_extensions")]
+    public List<string> EnabledExtensions { get; set; } = new();
 }
 
 public class Settings

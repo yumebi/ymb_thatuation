@@ -119,6 +119,18 @@ public class IpcBridge
         return null;
     }
 
+    private static List<string> GetStringList(Dictionary<string, JsonElement> args, string key)
+    {
+        if (args.TryGetValue(key, out var el) && el.ValueKind == JsonValueKind.Array)
+        {
+            return el.EnumerateArray()
+                .Where(e => e.ValueKind == JsonValueKind.String)
+                .Select(e => e.GetString()!)
+                .ToList();
+        }
+        return new List<string>();
+    }
+
     private Dictionary<string, string> GetTranslations(Dictionary<string, JsonElement> args)
     {
         var language = args.TryGetValue("language", out var langEl) ? langEl.GetString() ?? "ja" : "ja";
@@ -184,6 +196,7 @@ public class IpcBridge
         var chromeUa = GetOptionalBool(args, "chromeUa");
         var forceRenavigate = GetBool(args, "forceRenavigate");
         var notifyMuted = GetBool(args, "notifyMuted");
+        var enabledExtensions = GetStringList(args, "enabledExtensions");
 
         _configStore.Update(c =>
         {
@@ -204,6 +217,7 @@ public class IpcBridge
             inst.ChromeUa = chromeUa;
             inst.ForceRenavigate = forceRenavigate;
             inst.NotifyMuted = notifyMuted;
+            inst.EnabledExtensions = enabledExtensions;
         });
         return null;
     }

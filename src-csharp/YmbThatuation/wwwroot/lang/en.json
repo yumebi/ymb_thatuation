@@ -58,6 +58,7 @@
   "settings.chrome_ua_true": "Spoof as Chrome",
   "settings.chrome_ua_false": "Don't spoof (WebView2 default)",
   "settings.force_renavigate": "Retry loading if the page stays blank",
+  "settings.instance_extensions_label": "Extensions enabled for this service",
   "settings.icon_select": "Choose icon image",
   "settings.icon_reset": "Reset icon",
   "settings.updated": "Updated",
@@ -119,7 +120,7 @@
   "urlbar.open_external": "Open in default browser",
 
   "settings.ext_heading": "Extensions (Chrome extensions)",
-  "settings.ext_desc": "Place an unpacked Chrome extension in the extensions folder to load it when services start.<br>Sleep and reopen the affected services to apply changes. Intended for content extensions (uBlock Origin, Dark Reader, etc.). Direct store installs and popup UIs are not supported.",
+  "settings.ext_desc": "Place an unpacked Chrome extension in the extensions folder and it will appear in this list.<br>It is only loaded into services where you enable it in the service's add/edit form (disabled by default to save memory).<br>Sleep and reopen the affected services to apply changes. Intended for content extensions (uBlock Origin, Dark Reader, etc.). Direct store installs and popup UIs are not supported.",
   "settings.no_extensions": "No extensions yet",
   "settings.ext_delete_confirm": "Delete the extension \"{name}\"?",
   "settings.ext_deleted": "Deleted. Restart each service to apply the change",

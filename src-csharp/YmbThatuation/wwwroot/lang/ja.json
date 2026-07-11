@@ -58,6 +58,7 @@
   "settings.chrome_ua_true": "Chromeとして偽装する",
   "settings.chrome_ua_false": "偽装しない(WebView2既定)",
   "settings.force_renavigate": "読み込み画面が真っ白なまま固まる場合に再読み込みを試行する",
+  "settings.instance_extensions_label": "このサービスで有効にする拡張機能",
   "settings.icon_select": "アイコン画像を選択",
   "settings.icon_reset": "アイコンをリセット",
   "settings.updated": "更新しました",
@@ -119,7 +120,7 @@
   "urlbar.open_external": "外部ブラウザで開く",
 
   "settings.ext_heading": "拡張機能 (Chrome拡張)",
-  "settings.ext_desc": "展開済み(unpacked)のChrome拡張を拡張機能フォルダに置くと、サービス起動時に読み込まれます。<br>反映するには対象サービスを一度スリープして再表示してください。※コンテンツ系拡張(uBlock Origin / Dark Reader 等)が対象。ストアからの直接インストールやポップアップUIは非対応です。",
+  "settings.ext_desc": "展開済み(unpacked)のChrome拡張を拡張機能フォルダに置くと、この一覧に表示されます。<br>各サービスの追加/編集フォームで有効にしたサービスにのみ読み込まれます(メモリ節約のため既定では未読み込み)。<br>反映するには対象サービスを一度スリープして再表示してください。※コンテンツ系拡張(uBlock Origin / Dark Reader 等)が対象。ストアからの直接インストールやポップアップUIは非対応です。",
   "settings.no_extensions": "拡張機能はまだありません",
   "settings.ext_delete_confirm": "拡張「{name}」を削除しますか?",
   "settings.ext_deleted": "削除しました。反映には各サービスの再起動が必要です",
