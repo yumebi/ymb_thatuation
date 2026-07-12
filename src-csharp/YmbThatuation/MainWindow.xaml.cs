@@ -1,7 +1,10 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using YmbThatuation.Ipc;
@@ -18,6 +21,8 @@ public partial class MainWindow : Window
     private TrayService? _tray;
     private WindowStateService? _windowState;
     private uint _browserProcessId;
+    private System.Windows.Threading.DispatcherTimer? _welcomeTimer;
+    private string? _welcomePendingId;
 
     public MainWindow()
     {
@@ -44,6 +49,10 @@ public partial class MainWindow : Window
         var environmentOptions = new CoreWebView2EnvironmentOptions
         {
             AreBrowserExtensionsEnabled = true,
+            // 常駐メモリ削減のため、レンダラープロセス数の上限を絞り、クロスオリジンiframe
+            // ごとのプロセス分割(サイトアイソレーション)を無効化する。対象は自分で追加した
+            // 信頼済みサービスのみのため、セキュリティ分離が緩むリスクは許容範囲と判断。
+            AdditionalBrowserArguments = "--renderer-process-limit=4 --disable-features=SitePerProcess",
         };
         var environment = await CoreWebView2Environment.CreateAsync(
             browserExecutableFolder: null, userDataFolder: webview2DataDir, options: environmentOptions);
@@ -56,16 +65,11 @@ public partial class MainWindow : Window
             VirtualHost, wwwroot, CoreWebView2HostResourceAccessKind.Allow);
         _browserProcessId = (uint)SidebarWebView.CoreWebView2.BrowserProcessId;
 
-        // 待機画面
-        var welcomeWebView = new WebView2();
-        ContentHost.Children.Add(welcomeWebView);
-        var welcomeOptions = environment.CreateCoreWebView2ControllerOptions();
-        welcomeOptions.ProfileName = "welcome";
-        await welcomeWebView.EnsureCoreWebView2Async(environment, welcomeOptions);
-        welcomeWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-            VirtualHost, wwwroot, CoreWebView2HostResourceAccessKind.Allow);
+        // 待機画面。常駐WebView2を1つ減らすため、WebView2ではなくネイティブWPFで描画する。
+        var welcomePanel = BuildWelcomePanel(_configStore, wwwroot, out var welcomeTitle, out var welcomeBody, out var welcomeWakeBtn);
+        ContentHost.Children.Add(welcomePanel);
 
-        _instanceManager = new InstanceManager(ContentHost, welcomeWebView, SidebarWebView, environment, _configStore, wwwroot, VirtualHost);
+        _instanceManager = new InstanceManager(ContentHost, welcomePanel, SidebarWebView, environment, _configStore, wwwroot, VirtualHost);
         var bridge = new IpcBridge(_configStore, _instanceManager, wwwroot);
         _instanceManager.Bridge = bridge;
 
@@ -76,11 +80,10 @@ public partial class MainWindow : Window
         _instanceManager.UpdateCheck = new UpdateCheckService();
 
         SidebarWebView.CoreWebView2.AddHostObjectToScript("ymb", bridge);
-        welcomeWebView.CoreWebView2.AddHostObjectToScript("ymb", bridge);
 
         SidebarWebView.Source = new Uri($"https://{VirtualHost}/index.html");
-        welcomeWebView.Source = new Uri($"https://{VirtualHost}/welcome.html");
 
+        StartWelcomeTimer(welcomeTitle, welcomeBody, welcomeWakeBtn);
         _instanceManager.StartBackgroundTimer();
         _ = RestoreLastActiveAsync(_instanceManager, _configStore, lastActiveId);
         _ = CheckExtensionUpdatesAsync(_instanceManager, _configStore, _tray);
@@ -90,6 +93,157 @@ public partial class MainWindow : Window
         {
             Hide();
         }
+    }
+
+    /// <summary>
+    /// 待機画面(旧welcome.html相当)をネイティブWPFで構築する。常駐WebView2を1つ減らし、
+    /// メモリ使用量を抑えるための実装(ロゴ/タイトル/説明文/起床ボタンのみの簡素な画面のため
+    /// WebView2化する必要が無い)。テーマ配色はThemePalette(URLバーと同じ表)から取得する。
+    /// </summary>
+    private static Grid BuildWelcomePanel(ConfigStore configStore, string wwwrootDir,
+        out TextBlock titleText, out TextBlock bodyText, out System.Windows.Controls.Button wakeButton)
+    {
+        var theme = ThemePalette.Get(configStore.Get().Settings.Theme);
+        var bg = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(theme.Bar));
+        var fg = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(theme.Text));
+        var muted = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(theme.ButtonHover));
+
+        var root = new Grid { Background = bg };
+        var stack = new StackPanel
+        {
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        root.Children.Add(stack);
+
+        var logo = new Border
+        {
+            Width = 72,
+            Height = 72,
+            CornerRadius = new CornerRadius(16),
+            Margin = new Thickness(0, 0, 0, 18),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            Background = new LinearGradientBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#5b8def"),
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#41b883"),
+                new System.Windows.Point(0, 0), new System.Windows.Point(1, 1)),
+        };
+        var dots = new StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        foreach (var hex in new[] { "#5b8def", "#e8a33d", "#41b883" })
+        {
+            dots.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = 8,
+                Height = 8,
+                Margin = new Thickness(3, 0, 3, 0),
+                Fill = System.Windows.Media.Brushes.White,
+            });
+        }
+        logo.Child = dots;
+        stack.Children.Add(logo);
+
+        titleText = new TextBlock
+        {
+            Text = "YMB Thatuation",
+            FontSize = 20,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = fg,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        stack.Children.Add(titleText);
+
+        var t = Translations.Load(wwwrootDir, configStore.Get().Settings.Language);
+        bodyText = new TextBlock
+        {
+            Foreground = muted,
+            FontSize = 13,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+        };
+        SetWelcomeBody(bodyText, t.GetValueOrDefault("welcome.body", ""));
+        stack.Children.Add(bodyText);
+
+        wakeButton = new System.Windows.Controls.Button
+        {
+            Margin = new Thickness(0, 10, 0, 0),
+            Padding = new Thickness(22, 10, 22, 10),
+            Background = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#3fae5c")),
+            Foreground = System.Windows.Media.Brushes.White,
+            BorderThickness = new Thickness(0),
+            FontWeight = FontWeights.SemiBold,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Visibility = Visibility.Collapsed,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+        };
+        stack.Children.Add(wakeButton);
+
+        return root;
+    }
+
+    /// <summary>"welcome.body"の"&lt;br&gt;"を改行として反映する(元のHTML版と同じ表示)。</summary>
+    private static void SetWelcomeBody(TextBlock target, string html)
+    {
+        target.Inlines.Clear();
+        var lines = html.Split("<br>");
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (i > 0) target.Inlines.Add(new LineBreak());
+            target.Inlines.Add(new Run(lines[i]));
+        }
+    }
+
+    /// <summary>
+    /// 300ms間隔でPendingWakeIdを監視し、待機画面のタイトル/本文と起床ボタンの表示を切り替える。
+    /// 旧welcome.htmlのJS(invoke("ui_state")を300msごとにポーリング)と同じ挙動をネイティブに移植。
+    /// </summary>
+    private void StartWelcomeTimer(TextBlock titleText, TextBlock bodyText, System.Windows.Controls.Button wakeButton)
+    {
+        var t = Translations.Load(Path.Combine(AppContext.BaseDirectory, "wwwroot"), _configStore!.Get().Settings.Language);
+
+        wakeButton.Click += (_, _) =>
+        {
+            if (_welcomePendingId != null)
+            {
+                _ = _instanceManager?.ActivateAsync(_welcomePendingId);
+            }
+        };
+
+        _welcomeTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(300),
+        };
+        _welcomeTimer.Tick += (_, _) =>
+        {
+            var pendingId = _instanceManager?.PendingWakeId;
+            if (pendingId == _welcomePendingId) return;
+            _welcomePendingId = pendingId;
+
+            var pendingInst = pendingId != null
+                ? _configStore.Get().Instances.FirstOrDefault(i => i.Id == pendingId)
+                : null;
+
+            if (pendingInst != null)
+            {
+                titleText.Visibility = Visibility.Collapsed;
+                bodyText.Visibility = Visibility.Collapsed;
+                wakeButton.Content = t.GetValueOrDefault("welcome.wake_up", "{name} のスリープを解除する")
+                    .Replace("{name}", pendingInst.Name);
+                wakeButton.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                titleText.Visibility = Visibility.Visible;
+                bodyText.Visibility = Visibility.Visible;
+                wakeButton.Visibility = Visibility.Collapsed;
+            }
+        };
+        _welcomeTimer.Start();
     }
 
     /// <summary>

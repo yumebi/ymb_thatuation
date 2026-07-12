@@ -65,7 +65,7 @@ public class InstanceManager
 })();";
 
     private readonly Grid _contentHost;
-    private readonly WebView2 _welcomeWebView;
+    private readonly FrameworkElement _welcomePanel;
     private readonly WebView2 _sidebarWebView;
     private readonly CoreWebView2Environment _environment;
     private readonly ConfigStore _configStore;
@@ -92,10 +92,10 @@ public class InstanceManager
     public ExtensionsService? Extensions { get; set; }
     public UpdateCheckService? UpdateCheck { get; set; }
 
-    public InstanceManager(Grid contentHost, WebView2 welcomeWebView, WebView2 sidebarWebView, CoreWebView2Environment environment, ConfigStore configStore, string wwwrootDir, string virtualHost)
+    public InstanceManager(Grid contentHost, FrameworkElement welcomePanel, WebView2 sidebarWebView, CoreWebView2Environment environment, ConfigStore configStore, string wwwrootDir, string virtualHost)
     {
         _contentHost = contentHost;
-        _welcomeWebView = welcomeWebView;
+        _welcomePanel = welcomePanel;
         _sidebarWebView = sidebarWebView;
         _environment = environment;
         _configStore = configStore;
@@ -426,7 +426,7 @@ public class InstanceManager
         _settingsWebView?.Dispose();
         _settingsWebView = null;
 
-        _welcomeWebView.Dispose();
+        // _welcomePanelはネイティブWPF要素(WebView2ではない)のため明示的なDisposeは不要。
         _sidebarWebView.Dispose();
     }
 
@@ -458,7 +458,7 @@ public class InstanceManager
 
         HideOthers(null);
         PendingWakeId = id;
-        _welcomeWebView.Visibility = Visibility.Visible;
+        _welcomePanel.Visibility = Visibility.Visible;
     }
 
     public Task SleepAsync(string id)
@@ -479,7 +479,7 @@ public class InstanceManager
         if (ActiveId == id)
         {
             ActiveId = null;
-            _welcomeWebView.Visibility = Visibility.Visible;
+            _welcomePanel.Visibility = Visibility.Visible;
         }
         return Task.CompletedTask;
     }
@@ -641,7 +641,7 @@ public class InstanceManager
         if (ActiveId == id)
         {
             ActiveId = null;
-            _welcomeWebView.Visibility = Visibility.Visible;
+            _welcomePanel.Visibility = Visibility.Visible;
         }
     }
 
@@ -839,7 +839,7 @@ public class InstanceManager
                 _hiddenSince.TryAdd(otherId, DateTime.UtcNow);
             }
         }
-        _welcomeWebView.Visibility = keep == null ? Visibility.Visible : Visibility.Collapsed;
+        _welcomePanel.Visibility = keep == null ? Visibility.Visible : Visibility.Collapsed;
         if (_settingsWebView != null)
         {
             _settingsWebView.Visibility = keep == SettingsKey ? Visibility.Visible : Visibility.Collapsed;
