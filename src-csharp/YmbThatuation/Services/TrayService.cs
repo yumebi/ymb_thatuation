@@ -34,9 +34,13 @@ public class TrayService : IDisposable
             Text = "YMB Thatuation",
         };
 
+        // 並びはYMB共通: 表示切替 → アプリ固有項目 → 区切り → 終了
+        // tray.show は他のYMBアプリの「表示/非表示」に揃えていない。
+        // ShowMainWindow は表示するだけでトグルしないため、名前が動作と食い違う。
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add(t.GetValueOrDefault("tray.show", "Show"), null, (_, _) => ShowMainWindow());
         menu.Items.Add(t.GetValueOrDefault("tray.restart", "Restart"), null, (_, _) => Restart());
+        menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(t.GetValueOrDefault("tray.quit", "Quit"), null, (_, _) => Quit());
         _notifyIcon.ContextMenuStrip = menu;
         _notifyIcon.DoubleClick += (_, _) => ShowMainWindow();
