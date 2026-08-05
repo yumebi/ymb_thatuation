@@ -49,7 +49,7 @@ dotnet run
 
 ## 技術スタック
 
-- **言語/フレームワーク**: C# / .NET 8 (`net8.0-windows`) + WPF
+- **言語/フレームワーク**: C# / .NET 10 (`net10.0-windows`) + WPF
 - **WebView2 SDK**(`Microsoft.Web.WebView2`): 1つの `CoreWebView2Environment` を共有し、
   サービス(インスタンス)ごとに `CoreWebView2ControllerOptions.ProfileName` を分けることで
   Cookie / LocalStorage / 拡張機能設定を分離。ランタイムはOS共有のEvergreen版を使用(同梱なし)。
