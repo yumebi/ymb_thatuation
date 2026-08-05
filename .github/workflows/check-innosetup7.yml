@@ -1,0 +1,73 @@
+name: Check Inno Setup 7
+
+on:
+  schedule:
+    # 毎週月曜 09:00 JST (00:00 UTC) に実行
+    - cron: '0 0 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check Inno Setup latest version
+        id: inno
+        shell: pwsh
+        run: |
+          $out = choco search innosetup --exact --limitoutput 2>$null
+          $match = [regex]::Match(($out -join ' '), '^innosetup\|(\d+)\.(\d+)\.(\d+)$', 'IgnoreCase')
+          if (-not $match.Success) {
+            Write-Output "major=0"
+            Write-Output "version=unknown"
+            Write-Output "choco=$out"
+          } else {
+            $major = $match.Groups[1].Value
+            $version = "$($match.Groups[1].Value).$($match.Groups[2].Value).$($match.Groups[3].Value)"
+            Write-Output "major=$major"
+            Write-Output "version=$version"
+          }
+
+      - name: Check runner toolset for Inno Setup 7
+        id: toolset
+        shell: pwsh
+        run: |
+          try {
+            $toolset = Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/actions/runner-images/main/images/windows/toolsets/toolset-2025.json'
+            $inno = $toolset.choco.common_packages | Where-Object { $_.name -eq 'innosetup' }
+            if ($inno) {
+              Write-Output "found=true"
+              Write-Output ("args=" + ($inno.args -join ','))
+            } else {
+              Write-Output "found=false"
+            }
+          } catch {
+            Write-Output "found=false"
+            Write-Output "error=$($_.Exception.Message)"
+          }
+
+      - name: Create issue if Inno Setup 7 is available
+        if: steps.inno.outputs.major == '7' || contains(steps.toolset.outputs.args, '7')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $title = 'Inno Setup 7 が利用可能になりました'
+          $open = gh issue list --search "$title in:title" --state open --json number --jq 'length'
+          if ($open -gt 0) {
+            Write-Output "既にオープンのIssueがあるためスキップします"
+          } else {
+            $version = "${{ steps.inno.outputs.version }}"
+            $body = @(
+              "choco の innosetup パッケージが Inno Setup 7 に更新され、GitHub Actions ランナーで利用可能になりました。"
+              "- choco パッケージバージョン: $version"
+              "- 対応内容: 各リポジトリの release.yml の Inno Setup 呼び出しパスを 7 用に更新する"
+              '  （例: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" -> "C:\Program Files\Inno Setup 7\ISCC.exe"）'
+              "この Issue のクローズをもって対応完了とします。"
+            ) -join "`n"
+            gh issue create --title $title --body $body
+          }
