@@ -535,6 +535,14 @@ public class InstanceManager
                     if (json.TryGetProperty("playing", out var playingEl))
                     {
                         _mediaPlaying[id] = playingEl.GetBoolean();
+                        // 非表示のまま再生が開始/停止された場合も、メモリ抑圧の適用状態を
+                        // 更新する(再生中はLowにしないため、バックグラウンドでも途切れない)。
+                        if (_webviews.TryGetValue(id, out var mediaWebview)
+                            && _containers.TryGetValue(id, out var mediaContainer))
+                        {
+                            ApplyMemoryTargetLevel(id, mediaWebview,
+                                mediaContainer.Visibility == Visibility.Visible);
+                        }
                     }
                     break;
                 case "shortcut":
@@ -823,12 +831,12 @@ public class InstanceManager
         HideOthers(SettingsKey);
         _settingsWebView.Visibility = Visibility.Visible;
     }
-
     private void HideOthers(string? keep)
     {
         foreach (var (otherId, container) in _containers)
         {
-            if (otherId == keep)
+            var visible = otherId == keep;
+            if (visible)
             {
                 container.Visibility = Visibility.Visible;
                 _hiddenSince.Remove(otherId);
@@ -838,11 +846,44 @@ public class InstanceManager
                 container.Visibility = Visibility.Collapsed;
                 _hiddenSince.TryAdd(otherId, DateTime.UtcNow);
             }
+            if (_webviews.TryGetValue(otherId, out var webview))
+            {
+                ApplyMemoryTargetLevel(otherId, webview, visible);
+            }
         }
+
         _welcomePanel.Visibility = keep == null ? Visibility.Visible : Visibility.Collapsed;
         if (_settingsWebView != null)
         {
-            _settingsWebView.Visibility = keep == SettingsKey ? Visibility.Visible : Visibility.Collapsed;
+            var settingsVisible = keep == SettingsKey;
+            _settingsWebView.Visibility = settingsVisible ? Visibility.Visible : Visibility.Collapsed;
+            if (_settingsWebView.CoreWebView2 != null)
+            {
+                _settingsWebView.CoreWebView2.MemoryUsageTargetLevel = settingsVisible
+                    ? CoreWebView2MemoryUsageTargetLevel.Normal
+                    : CoreWebView2MemoryUsageTargetLevel.Low;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 表示中または音声/動画再生中のWebViewはNormal、それ以外(バックグラウンド)の
+    /// WebViewはLowにして、WebView2のインスタンスごとのメモリ消費を抑える。
+    /// Lowでもページ状態は維持されるため、表示へ戻した際に一瞬で復帰する。
+    /// </summary>
+    private void ApplyMemoryTargetLevel(string id, WebView2 webview, bool visible)
+    {
+        if (webview.CoreWebView2 == null) return;
+        try
+        {
+            var playing = _mediaPlaying.GetValueOrDefault(id);
+            webview.CoreWebView2.MemoryUsageTargetLevel = visible || playing
+                ? CoreWebView2MemoryUsageTargetLevel.Normal
+                : CoreWebView2MemoryUsageTargetLevel.Low;
+        }
+        catch (InvalidOperationException)
+        {
+            // CoreWebView2が無効化された直後等は無視。
         }
     }
 
