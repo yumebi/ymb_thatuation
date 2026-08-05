@@ -1,0 +1,74 @@
+name: Check Tauri wry 0.56 (with_profile_name)
+
+on:
+  schedule:
+    # 毎週月曜 09:00 JST (00:00 UTC) に実行
+    - cron: '0 0 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check tauri-runtime-wry dependency on wry
+        id: wry
+        shell: pwsh
+        run: |
+          $headers = @{ 'User-Agent' = 'ymb-check-tauri-wry56' }
+          try {
+            $crate = Invoke-RestMethod -Uri 'https://crates.io/api/v1/crates/tauri-runtime-wry' -Headers $headers
+            $trwVersion = $crate.crate.max_stable_version
+            $deps = Invoke-RestMethod -Uri "https://crates.io/api/v1/crates/tauri-runtime-wry/$trwVersion/dependencies" -Headers $headers
+            $wryDep = $deps.dependencies | Where-Object { $_.crate_id -eq 'wry' }
+            if (-not $wryDep) {
+              Write-Output "major=0"
+              Write-Output "minor=0"
+              Write-Output "usable=false"
+              Write-Output "wry_req=none"
+              Write-Output "trw_version=$trwVersion"
+            } else {
+              $m = [regex]::Match($wryDep.req, '^[\^=\s]*(\d+)\.(\d+)')
+              $major = if ($m.Success) { [int]$m.Groups[1].Value } else { 0 }
+              $minor = if ($m.Success) { [int]$m.Groups[2].Value } else { 0 }
+              $usable = ($major -gt 0) -or ($major -eq 0 -and $minor -ge 56)
+              Write-Output "major=$major"
+              Write-Output "minor=$minor"
+              Write-Output "usable=$usable"
+              Write-Output "wry_req=$($wryDep.req)"
+              Write-Output "trw_version=$trwVersion"
+            }
+          } catch {
+            Write-Output "major=0"
+            Write-Output "minor=0"
+            Write-Output "usable=false"
+            Write-Output "wry_req=error:$($_.Exception.Message)"
+          }
+
+      - name: Create issue if wry 0.56+ is available via Tauri
+        if: steps.wry.outputs.usable == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $title = 'Tauri が wry 0.56 (with_profile_name) に対応しました'
+          $open = gh issue list --search "$title in:title" --state open --json number --jq 'length'
+          if ($open -gt 0) {
+            Write-Output "既にオープンのIssueがあるためスキップします"
+          } else {
+            $body = @(
+              "tauri-runtime-wry が wry 0.56 以上に追従し、`with_profile_name` が Tauri アプリから使えるようになりました。"
+              "- tauri-runtime-wry: ${{ steps.wry.outputs.trw_version }}"
+              "- wry 依存: ${{ steps.wry.outputs.wry_req }}"
+              ""
+              "これで Tauri 版 ymb_thatuation (src-tauri/) の開発保留理由が解消されました。"
+              "マルチインスタンスのプロファイル分離 (CoreWebView2ControllerOptions.ProfileName) を"
+              "WebViewBuilderExtWindows::with_profile_name で実装し、開発を再開できます。"
+              "この Issue のクローズをもって対応完了とします。"
+            ) -join "`n"
+            gh issue create --title $title --body $body
+          }
