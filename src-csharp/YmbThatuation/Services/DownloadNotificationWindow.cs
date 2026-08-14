@@ -135,7 +135,13 @@ public class DownloadNotificationWindow : Window
 
     private void OpenFolder()
     {
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{_filePath}\"") { UseShellExecute = true });
+        var psi = new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            UseShellExecute = true,
+        };
+        psi.ArgumentList.Add($"/select,\"{_filePath}\"");
+        Process.Start(psi);
         if (_finished) CloseSelf();
     }
 

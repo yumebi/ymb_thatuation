@@ -166,8 +166,12 @@
     <div class="row" id="url-row" style="display:none">
       <input id="url" placeholder="https://..." style="flex:1" />
     </div>
-    <div class="row" id="cw-token-row" style="display:none">
+    <div class="row" id="cw-token-row" style="display:none;flex-direction:column;align-items:flex-start;gap:4px">
       <input id="cw-token" data-i18n-placeholder="settings.chatwork_token_placeholder" placeholder="Chatwork APIトークン (スリープ中の未読取得用・任意)" style="flex:1" />
+      <label id="cw-clear-row" style="display:none">
+        <input type="checkbox" id="cw-clear" />
+        <span data-i18n="settings.chatwork_token_clear">設定済みのトークンを削除する</span>
+      </label>
     </div>
     <div class="row">
       <label><input type="checkbox" id="keep-awake" /><span data-i18n="settings.keep_awake">スリープさせない</span></label>
@@ -435,7 +439,13 @@
     $("url").value = inst.url || "";
     $("url-row").style.display = inst.recipe === "generic" ? "" : "none";
     $("cw-token-row").style.display = inst.recipe === "chatwork" ? "" : "none";
-    $("cw-token").value = inst.chatwork_token || "";
+    const tokenSet = !!inst.chatwork_token_set;
+    $("cw-token").value = "";
+    $("cw-clear-row").style.display = tokenSet ? "" : "none";
+    $("cw-clear").checked = false;
+    $("cw-token").placeholder = tokenSet
+      ? (t("settings.chatwork_token_set_placeholder"))
+      : (t("settings.chatwork_token_placeholder"));
     $("keep-awake").checked = !!inst.keep_awake;
     $("notify-muted").checked = !!inst.notify_muted;
     $("chrome-ua").value = inst.chrome_ua === true ? "true" : inst.chrome_ua === false ? "false" : "";
@@ -457,6 +467,8 @@
     $("name").value = "";
     $("url").value = "";
     $("cw-token").value = "";
+    $("cw-clear-row").style.display = "none";
+    $("cw-clear").checked = false;
     $("cw-token-row").style.display = "none";
     $("keep-awake").checked = false;
     $("notify-muted").checked = false;
@@ -656,13 +668,14 @@
     const keepAwake = $("keep-awake").checked;
     const notifyMuted = $("notify-muted").checked;
     const chatworkToken = $("cw-token").value.trim() || null;
+    const clearChatworkToken = $("cw-clear").checked;
     const chromeUaVal = $("chrome-ua").value;
     const chromeUa = chromeUaVal === "" ? null : chromeUaVal === "true";
     const forceRenavigate = $("force-renavigate").checked;
     if (!name) return;
     try {
       if (editingId) {
-        await invoke("update_instance", { id: editingId, name, color, url, keepAwake, notifyMuted, chatworkToken, customIcon, chromeUa, forceRenavigate, enabledExtensions: instanceExtSelection });
+        await invoke("update_instance", { id: editingId, name, color, url, keepAwake, notifyMuted, chatworkToken, clearChatworkToken, customIcon, chromeUa, forceRenavigate, enabledExtensions: instanceExtSelection });
         notify(t("settings.updated"));
         endEdit();
       } else {

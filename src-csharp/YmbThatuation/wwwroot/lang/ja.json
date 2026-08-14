@@ -51,6 +51,8 @@
   "settings.name_placeholder": "表示名 (例: Gmail 仕事)",
   "settings.color_title": "識別カラー",
   "settings.chatwork_token_placeholder": "Chatwork APIトークン (スリープ中の未読取得用・任意)",
+  "settings.chatwork_token_set_placeholder": "Chatwork APIトークン (設定済み。変更する場合のみ再入力)",
+  "settings.chatwork_token_clear": "設定済みのトークンを削除する",
   "settings.keep_awake": "スリープさせない",
   "settings.notify_muted": "このサービスは通知しない",
   "settings.chrome_ua_label": "ブラウザのUA偽装",

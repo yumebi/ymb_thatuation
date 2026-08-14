@@ -35,7 +35,7 @@ public class IpcBridge
 
             object? result = command switch
             {
-                "get_config" => _configStore.Get(),
+                "get_config" => GetConfig(),
                 "get_translations" => GetTranslations(args),
                 "ui_state" => _instanceManager.GetUiState(),
                 "select_instance" => await SelectInstance(args),
@@ -81,9 +81,32 @@ public class IpcBridge
         }
     }
 
-    private static string GetId(Dictionary<string, JsonElement> args) => GetString(args, "id");
+    /// <summary>
+    /// UI向けに設定を返す。Chatworkトークンの平文は返さず、設定済みかどうかの
+    /// chatwork_token_setフラグだけを返す(ホストオブジェクトを介したトークン窃取を防ぐ)。
+    /// </summary>
+    private object GetConfig()
+    {
+        var cfg = _configStore.Get();
+        // 実際のconfigを変異させないため、JSON経由でクローンしてからトークンを落とす。
+        var clone = System.Text.Json.Nodes.JsonNode.Parse(
+            JsonSerializer.Serialize(cfg))
+            ?? throw new InvalidOperationException("設定の読み込みに失敗しました");
+        var root = clone.AsObject();
+        if (root["instances"] is System.Text.Json.Nodes.JsonArray instances)
+        {
+            foreach (var node in instances)
+            {
+                if (node is not System.Text.Json.Nodes.JsonObject obj) continue;
+                var token = obj["chatwork_token"]?.GetValue<string>();
+                obj["chatwork_token_set"] = !string.IsNullOrEmpty(token);
+                obj["chatwork_token"] = null;
+            }
+        }
+        return clone;
+    }
 
-    private static string GetString(Dictionary<string, JsonElement> args, string key)
+    private static string GetId(Dictionary<string, JsonElement> args) => GetString(args, "id");    private static string GetString(Dictionary<string, JsonElement> args, string key)
     {
         if (args.TryGetValue(key, out var el) && el.ValueKind == JsonValueKind.String)
         {
@@ -192,6 +215,7 @@ public class IpcBridge
         var url = GetOptionalString(args, "url");
         var keepAwake = GetBool(args, "keepAwake");
         var chatworkToken = GetOptionalString(args, "chatworkToken");
+        var clearChatworkToken = GetBool(args, "clearChatworkToken");
         var customIcon = GetOptionalString(args, "customIcon");
         var chromeUa = GetOptionalBool(args, "chromeUa");
         var forceRenavigate = GetBool(args, "forceRenavigate");
@@ -211,7 +235,16 @@ public class IpcBridge
             }
             if (inst.Recipe == "chatwork")
             {
-                inst.ChatworkToken = string.IsNullOrEmpty(chatworkToken) ? null : chatworkToken;
+                if (clearChatworkToken)
+                {
+                    inst.ChatworkToken = null;
+                }
+                else if (!string.IsNullOrEmpty(chatworkToken))
+                {
+                    inst.ChatworkToken = chatworkToken;
+                }
+                // 空文字でクリアという旧仕様は廃止。明示的なclearChatworkTokenでのみ消す。
+                // (get_configがトークンを返さなくなったため、空欄=変更なしを維持する)
             }
             inst.CustomIcon = string.IsNullOrEmpty(customIcon) ? null : customIcon;
             inst.ChromeUa = chromeUa;
@@ -389,7 +422,24 @@ public class IpcBridge
         };
         if (dialog.ShowDialog() != true) return false;
 
-        var json = JsonSerializer.Serialize(_configStore.Get(), new JsonSerializerOptions { WriteIndented = true });
+        var cfg = _configStore.Get();
+        // 実際のconfigを変異させないため、JSON経由でクローンしてからトークンを落とす。
+        var clone = System.Text.Json.Nodes.JsonNode.Parse(
+            JsonSerializer.Serialize(cfg))
+            ?? throw new InvalidOperationException("設定の読み込みに失敗しました");
+        var root = clone.AsObject();
+        if (root["instances"] is System.Text.Json.Nodes.JsonArray instances)
+        {
+            foreach (var node in instances)
+            {
+                // エクスポートにはトークン等の機密情報を含めない
+                if (node is System.Text.Json.Nodes.JsonObject obj)
+                {
+                    obj["chatwork_token"] = null;
+                }
+            }
+        }
+        var json = clone.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(dialog.FileName, json);
         return true;
     }
@@ -403,6 +453,18 @@ public class IpcBridge
         var json = File.ReadAllText(dialog.FileName);
         var imported = JsonSerializer.Deserialize<Config>(json)
             ?? throw new InvalidOperationException("設定ファイルの読み込みに失敗しました");
+        if (imported.Settings is null || imported.Instances is null)
+        {
+            throw new InvalidOperationException("設定ファイルの形式が不正です");
+        }
+        // エクスポートはトークンを含まない。万一含まれていても、インポートで
+        // 既存のトークンを上書きしない(ユーザー操作なしのトークン置換を防ぐ)。
+        var existing = _configStore.Get();
+        foreach (var inst in imported.Instances)
+        {
+            var current = existing.Instances.FirstOrDefault(i => i.Id == inst.Id);
+            inst.ChatworkToken = current?.ChatworkToken;
+        }
         _configStore.Replace(imported);
         return true;
     }

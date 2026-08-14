@@ -20,6 +20,14 @@ public class ConfigStore
         _config = Load();
     }
 
+    /// <summary>テスト用: 設定ディレクトリを明示指定する。</summary>
+    public ConfigStore(string appDataDir)
+    {
+        AppDataDir = appDataDir;
+        _configPath = Path.Combine(appDataDir, "config", "config.json");
+        _config = Load();
+    }
+
     public string AppDataDir { get; }
 
     private static readonly JsonSerializerOptions JsonOptions = new()

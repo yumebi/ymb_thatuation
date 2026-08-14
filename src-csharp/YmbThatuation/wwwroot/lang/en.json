@@ -51,6 +51,8 @@
   "settings.name_placeholder": "Display name (e.g. Gmail Work)",
   "settings.color_title": "Color",
   "settings.chatwork_token_placeholder": "Chatwork API token (optional, for unread count while asleep)",
+  "settings.chatwork_token_set_placeholder": "Chatwork API token (already set. Re-enter only to change)",
+  "settings.chatwork_token_clear": "Delete the saved token",
   "settings.keep_awake": "Never sleep this service",
   "settings.notify_muted": "Don't notify for this service",
   "settings.chrome_ua_label": "Browser UA spoofing",

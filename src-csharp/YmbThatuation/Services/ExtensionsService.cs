@@ -336,7 +336,8 @@ public class ExtensionsService
         var dir = ExtensionsDir();
         var fullDir = Path.GetFullPath(dir);
         var fullTarget = Path.GetFullPath(path);
-        if (!fullTarget.StartsWith(fullDir, StringComparison.OrdinalIgnoreCase))
+        if (!(fullTarget == fullDir
+              || fullTarget.StartsWith(fullDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("拡張機能フォルダ外は削除できません");
         }
@@ -354,8 +355,21 @@ public class ExtensionsService
     /// </summary>
     public void ResetExtensionState(string id)
     {
+        // パストラバーサル防止: プロファイル名として安全な文字のみ許可。
+        // 拡張IDは32文字のa-p(CWS)、またはスキャン済みフォルダ名に由来する。
+        if (string.IsNullOrEmpty(id)
+            || !id.All(c => char.IsAsciiLetterOrDigit(c) || c == '-' || c == '_'))
+        {
+            throw new InvalidOperationException("拡張機能IDが不正です");
+        }
         var profile = Path.Combine(_configStore.AppDataDir, "webview2", "EBWebView", $"WV2Profile_{id}");
-        if (!Directory.Exists(profile)) return;
+        var fullProfile = Path.GetFullPath(profile);
+        var baseDir = Path.GetFullPath(Path.Combine(_configStore.AppDataDir, "webview2", "EBWebView"));
+        if (!fullProfile.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("拡張機能プロファイル外は操作できません");
+        }
+        if (!Directory.Exists(fullProfile)) return;
 
         foreach (var name in new[]
         {
