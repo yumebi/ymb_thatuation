@@ -91,6 +91,7 @@ public class InstanceManager
     public MemoryService? Memory { get; set; }
     public ExtensionsService? Extensions { get; set; }
     public UpdateCheckService? UpdateCheck { get; set; }
+    public PopupManager? Popup { get; set; }
 
     public InstanceManager(Grid contentHost, FrameworkElement welcomePanel, WebView2 sidebarWebView, CoreWebView2Environment environment, ConfigStore configStore, string wwwrootDir, string virtualHost)
     {
@@ -201,7 +202,7 @@ public class InstanceManager
 
                 webview.CoreWebView2.ContextMenuRequested += (_, e) => OnContextMenuRequested(e);
                 webview.CoreWebView2.ProcessFailed += (_, e) => OnProcessFailed(id, e);
-                webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(e);
+                webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(id, e);
                 webview.CoreWebView2.PermissionRequested += (_, e) => OnPermissionRequested(e);
                 webview.CoreWebView2.DownloadStarting += (_, e) => OnDownloadStarting(e);
                 webview.CoreWebView2.SourceChanged += (_, _) => urlBar.Text = webview.Source.ToString();
@@ -384,7 +385,7 @@ public class InstanceManager
 
     private static ControlTemplate? _flatButtonTemplate;
 
-    private static ControlTemplate FlatButtonTemplate => _flatButtonTemplate ??= (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+    internal static ControlTemplate FlatButtonTemplate => _flatButtonTemplate ??= (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
         @"<ControlTemplate xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"" TargetType=""Button"">
             <Border Background=""{TemplateBinding Background}"" CornerRadius=""4"" Margin=""2"">
               <ContentPresenter HorizontalAlignment=""Center"" VerticalAlignment=""Center"" TextElement.Foreground=""{TemplateBinding Foreground}""/>
@@ -413,6 +414,8 @@ public class InstanceManager
     {
         _backgroundTimer?.Dispose();
         _backgroundTimer = null;
+
+        Popup?.DisposeAll();
 
         foreach (var webview in _webviews.Values)
         {
@@ -662,9 +665,9 @@ public class InstanceManager
     /// そのため、about:blank(URI無し)の場合はイベントを一切ハンドルせず、WebView2の
     /// 既定ポップアップ作成に任せる(鍵マーク操作によるクラッシュはGetBrowserProcessIds
     /// のtry-catchとOnProcessFailedのBrowserProcessExited処理で被害を抑えている)。
-    /// 実URLへの遷移(OAuth等)は引き続き外部ブラウザで開く。
+    /// 実URLへの遷移(OAuth等)はアプリ内ポップアップで完結させる。
     /// </summary>
-    private void OnNewWindowRequested(CoreWebView2NewWindowRequestedEventArgs e)
+    private void OnNewWindowRequested(string instanceId, CoreWebView2NewWindowRequestedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.Uri) || e.Uri == "about:blank")
         {
@@ -672,7 +675,43 @@ public class InstanceManager
         }
 
         e.Handled = true;
-        OpenInExternalBrowser(e.Uri);
+
+        if (Popup == null)
+        {
+            OpenInExternalBrowser(e.Uri);
+            return;
+        }
+
+        var config = _configStore.Get();
+        var inst = config.Instances.FirstOrDefault(i => i.Id == instanceId);
+        if (inst == null)
+        {
+            OpenInExternalBrowser(e.Uri);
+            return;
+        }
+
+        var parentHost = ExtractHost(Recipes.ResolveUrl(inst));
+        var theme = ThemePalette.Get(config.Settings.Theme);
+
+        _ = System.Windows.Application.Current?.Dispatcher.InvokeAsync(async () =>
+        {
+            try
+            {
+                await Popup.ShowAsync(instanceId, parentHost, e.Uri, _environment, _contentHost, theme);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[popup] failed: {ex.Message}");
+                OpenInExternalBrowser(e.Uri);
+            }
+        });
+    }
+
+    private static string ExtractHost(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var parsed))
+            return parsed.Host;
+        return "";
     }
 
     /// <summary>

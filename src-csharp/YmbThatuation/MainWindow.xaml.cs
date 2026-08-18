@@ -70,6 +70,7 @@ public partial class MainWindow : Window
         ContentHost.Children.Add(welcomePanel);
 
         _instanceManager = new InstanceManager(ContentHost, welcomePanel, SidebarWebView, environment, _configStore, wwwroot, VirtualHost);
+        _instanceManager.Popup = new PopupManager();
         var bridge = new IpcBridge(_configStore, _instanceManager, wwwroot);
         _instanceManager.Bridge = bridge;
 
