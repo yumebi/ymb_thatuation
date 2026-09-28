@@ -78,7 +78,16 @@ public static class Recipes
     {
         if (cfg.Recipe == "generic")
         {
-            if (!string.IsNullOrEmpty(cfg.Url)) return cfg.Url;
+            if (!string.IsNullOrEmpty(cfg.Url))
+            {
+                // 設定JSON(import_settings)等から素通りで渡ってくると file:// や
+                // 独自スキームをWebViewにNavigateできてしまうため、ここで弾く。
+                if (!SecurityLimits.IsAllowedInstanceUrl(cfg.Url))
+                {
+                    throw new InvalidOperationException("generic レシピの url は http/https のみ指定できます");
+                }
+                return cfg.Url;
+            }
             throw new InvalidOperationException("generic レシピには url が必要です");
         }
         if (Urls.TryGetValue(cfg.Recipe, out var url)) return url;
