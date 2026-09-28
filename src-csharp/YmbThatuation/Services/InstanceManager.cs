@@ -690,7 +690,16 @@ public class InstanceManager
             return;
         }
 
-        var parentHost = ExtractHost(Recipes.ResolveUrl(inst));
+        // 設定不整合でResolveUrlが例外を投げてもイベントハンドラを落とさない。
+        string parentHost;
+        try
+        {
+            parentHost = ExtractHost(Recipes.ResolveUrl(inst));
+        }
+        catch (InvalidOperationException)
+        {
+            parentHost = "";
+        }
         var theme = ThemePalette.Get(config.Settings.Theme);
 
         _ = System.Windows.Application.Current?.Dispatcher.InvokeAsync(async () =>

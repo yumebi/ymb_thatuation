@@ -27,6 +27,30 @@ public class RecipesTests
         Assert.Throws<InvalidOperationException>(() => Recipes.ResolveUrl(cfg));
     }
 
+    [Theory]
+    [InlineData("file:///C:/Windows/System32/calc.exe")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("smb://evil.example/share/payload.exe")]
+    [InlineData("ftp://example.com/x")]
+    [InlineData("https://user:pass@example.com")]
+    [InlineData("not a url")]
+    public void ResolveUrl_GenericWithDisallowedUrl_Throws(string url)
+    {
+        // 設定JSON(import_settings)からfile://等を仕込まれた場合の防御。
+        var cfg = new InstanceCfg { Recipe = "generic", Url = url };
+        Assert.Throws<InvalidOperationException>(() => Recipes.ResolveUrl(cfg));
+    }
+
+    [Theory]
+    [InlineData("https://example.com")]
+    [InlineData("http://example.com/path?a=b")]
+    [InlineData("HTTPS://EXAMPLE.COM")]
+    public void ResolveUrl_GenericWithAllowedUrl_ReturnsUrl(string url)
+    {
+        var cfg = new InstanceCfg { Recipe = "generic", Url = url };
+        Assert.Equal(url, Recipes.ResolveUrl(cfg));
+    }
+
     [Fact]
     public void ResolveUrl_UnknownRecipe_Throws()
     {

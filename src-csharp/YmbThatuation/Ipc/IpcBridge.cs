@@ -457,6 +457,16 @@ public class IpcBridge
         {
             throw new InvalidOperationException("設定ファイルの形式が不正です");
         }
+        // インポートした設定は次回の起動時にそのままWebViewへNavigateされる。
+        // file:// や独自スキームを仕込まれたJSONでも通さないよう、投入前に検証する。
+        foreach (var inst in imported.Instances)
+        {
+            if (inst.Recipe == "generic" && !SecurityLimits.IsAllowedInstanceUrl(inst.Url))
+            {
+                throw new InvalidOperationException(
+                    $"インスタンス「{inst.Name}」の URL が不正です(http/https のみ許可されます)");
+            }
+        }
         // エクスポートはトークンを含まない。万一含まれていても、インポートで
         // 既存のトークンを上書きしない(ユーザー操作なしのトークン置換を防ぐ)。
         var existing = _configStore.Get();
