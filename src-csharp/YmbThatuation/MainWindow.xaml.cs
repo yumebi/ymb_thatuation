@@ -552,6 +552,32 @@ public partial class MainWindow : Window
         Focus();
     }
 
+    /// <summary>
+    /// ウインドウを既定の大きさにして、プライマリモニタの中央に戻す(トレイのメニューから呼ばれる)。
+    /// 位置の補正が効かない状況(モニタ構成の想定外の変化など)の最終手段。
+    /// </summary>
+    public void ResetPlacement()
+    {
+        if (!IsVisible) Show();
+        if (WindowState != WindowState.Normal) WindowState = WindowState.Normal;
+
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var scale = Win32.GetScale(hwnd);
+        var wa = System.Windows.Forms.Screen.PrimaryScreen?.WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1920, 1040);
+        var target = WindowPlacementMath.Centered(
+            new PxRect(wa.X, wa.Y, wa.Width, wa.Height),
+            (int)Math.Round(DefaultWidth * scale), (int)Math.Round(DefaultHeight * scale));
+        Win32.SetWindowPos(hwnd, IntPtr.Zero, target.X, target.Y, target.Width, target.Height,
+            Win32.SWP_NOZORDER | Win32.SWP_NOACTIVATE);
+
+        SaveWindowState();
+        RestoreFromTray();
+    }
+
+    // MainWindow.xaml の Width / Height と同じ値(既定の大きさ)。
+    private const double DefaultWidth = 1200;
+    private const double DefaultHeight = 800;
+
     /// <summary>WPFの状態を変えずに、ウインドウだけを画面から消す(Closing中でも呼べる)。</summary>
     private void HideNow()
     {

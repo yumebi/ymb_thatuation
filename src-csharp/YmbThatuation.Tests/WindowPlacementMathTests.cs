@@ -107,6 +107,28 @@ public class WindowPlacementMathTests
     }
 
     [Fact]
+    public void Centered_PlacesTheRectInTheMiddleOfTheWorkArea()
+    {
+        var r = WindowPlacementMath.Centered(Main, 1200, 800);
+        Assert.Equal(new PxRect(360, 120, 1200, 800), r);
+    }
+
+    [Fact]
+    public void Centered_UsesTheWorkAreaOrigin_OnAMonitorWithNegativeCoordinates()
+    {
+        var left = new PxRect(-1280, 100, 1280, 900);
+        var r = WindowPlacementMath.Centered(left, 800, 600);
+        Assert.Equal(new PxRect(-1040, 250, 800, 600), r);
+    }
+
+    [Fact]
+    public void Centered_ShrinksToTheWorkArea_WhenTooBig()
+    {
+        var r = WindowPlacementMath.Centered(Main, 5000, 4000);
+        Assert.Equal(Main, r);
+    }
+
+    [Fact]
     public void OverlapArea_IsZeroWhenApart()
     {
         Assert.Equal(0, PxRect.OverlapArea(new PxRect(0, 0, 10, 10), new PxRect(20, 20, 5, 5)));

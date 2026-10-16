@@ -39,6 +39,7 @@ public class TrayService : IDisposable
         // ShowMainWindow は表示するだけでトグルしないため、名前が動作と食い違う。
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add(t.GetValueOrDefault("tray.show", "Show"), null, (_, _) => ShowMainWindow());
+        menu.Items.Add(t.GetValueOrDefault("tray.reset_position", "Reset window position"), null, (_, _) => ResetWindowPosition());
         menu.Items.Add(t.GetValueOrDefault("tray.restart", "Restart"), null, (_, _) => Restart());
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(t.GetValueOrDefault("tray.quit", "Quit"), null, (_, _) => Quit());
@@ -58,6 +59,12 @@ public class TrayService : IDisposable
         _window.Show();
         if (_window.WindowState == WindowState.Minimized) _window.WindowState = WindowState.Normal;
         _window.Activate();
+    }
+
+    /// <summary>ウインドウの位置と大きさを、既定(プライマリモニタの中央)に戻す。</summary>
+    private void ResetWindowPosition()
+    {
+        if (_window is MainWindow main) main.ResetPlacement();
     }
 
     public void Quit()

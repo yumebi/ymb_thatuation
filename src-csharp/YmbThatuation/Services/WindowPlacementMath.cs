@@ -26,6 +26,17 @@ public static class WindowPlacementMath
     public const int GrabWidth = 160;
     public const int GrabHeight = 40;
 
+    /// <summary>作業領域の中央に、指定の大きさの矩形を置く(作業領域より大きければ収める)。</summary>
+    public static PxRect Centered(PxRect workArea, int width, int height)
+    {
+        var w = Math.Min(width, workArea.Width);
+        var h = Math.Min(height, workArea.Height);
+        return new PxRect(
+            workArea.X + (workArea.Width - w) / 2,
+            workArea.Y + (workArea.Height - h) / 2,
+            w, h);
+    }
+
     /// <param name="desired">復元したい矩形(物理ピクセル、スクリーン座標)。</param>
     /// <param name="workAreas">各モニタの作業領域(タスクバーを除く)。</param>
     /// <param name="minWidth">最小の幅。</param>

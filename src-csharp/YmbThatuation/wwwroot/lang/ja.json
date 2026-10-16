@@ -170,5 +170,6 @@
   "notify.update.body": "v{latest} (現在 v{current})。クリックでダウンロードページを開きます",
   "download.progress": "ダウンロード中…",
   "download.done": "ダウンロード完了 ・ クリックでフォルダを開く",
-  "download.failed": "ダウンロードがキャンセル/失敗しました"
+  "download.failed": "ダウンロードがキャンセル/失敗しました",
+  "tray.reset_position": "ウインドウ位置をリセット"
 }
