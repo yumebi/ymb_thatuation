@@ -123,8 +123,17 @@ public class TrayService : IDisposable
         return bitmap;
     }
 
+    /// <summary>開発・動作確認用。設定すると、出した通知(題名と本文)をこのファイルに追記する。</summary>
+    public const string NotifyLogEnvVar = "YMB_THATUATION_NOTIFY_LOG";
+
     public void ShowNotification(string title, string body, Action? onClick = null)
     {
+        if (Environment.GetEnvironmentVariable(NotifyLogEnvVar) is { Length: > 0 } logPath)
+        {
+            try { System.IO.File.AppendAllText(logPath, title + "|" + body.Replace("\n", " / ") + Environment.NewLine); }
+            catch { /* 記録できなくても通知は出す */ }
+        }
+
         _notifyIcon.BalloonTipTitle = title;
         _notifyIcon.BalloonTipText = body;
 

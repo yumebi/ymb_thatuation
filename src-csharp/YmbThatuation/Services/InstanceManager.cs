@@ -77,7 +77,9 @@ public class InstanceManager
     private readonly Dictionary<string, RowDefinition> _urlBarRows = new();
     private readonly Dictionary<string, uint> _unread = new();
     private readonly UnreadNotificationTracker _notifyTracker = new();
-    private readonly List<UnreadNotice> _pendingNotices = new();
+    private readonly NoticeBatcher _batcher = new();
+    // 通知を出したあと、クリックや表示をページへ知らせるために、Web 通知の元オブジェクトを覚えておく。
+    private readonly Dictionary<WebNotice, CoreWebView2Notification> _webSources = new();
     private System.Windows.Threading.DispatcherTimer? _noticeTimer;
     private readonly Dictionary<string, DateTime> _hiddenSince = new();
     private readonly Dictionary<string, bool> _mediaPlaying = new();
@@ -92,6 +94,9 @@ public class InstanceManager
     public MemoryService? Memory { get; set; }
     public ExtensionsService? Extensions { get; set; }
     public UpdateCheckService? UpdateCheck { get; set; }
+
+    /// <summary>本体の新バージョンが見つかっていれば、その確認結果。サイドバーの更新ボタンの表示に使う。</summary>
+    public UpdateCheckResult? AppUpdate { get; set; }
     public PopupManager? Popup { get; set; }
 
     public InstanceManager(Grid contentHost, FrameworkElement welcomePanel, WebView2 sidebarWebView, CoreWebView2Environment environment, ConfigStore configStore, string wwwrootDir, string virtualHost)
@@ -205,6 +210,7 @@ public class InstanceManager
                 webview.CoreWebView2.ProcessFailed += (_, e) => OnProcessFailed(id, e);
                 webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(id, e);
                 webview.CoreWebView2.PermissionRequested += (_, e) => OnPermissionRequested(e);
+                webview.CoreWebView2.NotificationReceived += (_, e) => OnNotificationReceived(id, e);
                 webview.CoreWebView2.DownloadStarting += (_, e) => OnDownloadStarting(e);
                 webview.CoreWebView2.SourceChanged += (_, _) => urlBar.Text = webview.Source.ToString();
                 webview.CoreWebView2.NavigationStarting += (_, _) =>
@@ -519,7 +525,7 @@ public class InstanceManager
     private void ClearUnread(string id)
     {
         _notifyTracker.Remove(id);
-        _pendingNotices.RemoveAll(n => n.Id == id);
+        _batcher.Remove(id);
         if (_unread.Remove(id))
         {
             Tray?.UpdateOverlayBadge(_unread.Values.Sum(v => (int)v));
@@ -612,10 +618,35 @@ public class InstanceManager
     /// </summary>
     private void QueueNotice(UnreadNotice notice)
     {
-        var index = _pendingNotices.FindIndex(n => n.Id == notice.Id);
-        if (index >= 0) _pendingNotices[index] = notice;
-        else _pendingNotices.Add(notice);
+        // 直前に Web 通知(送信者・本文つき)を出したサービスは、件数の通知を重ねて出さない
+        if (!_batcher.AddUnread(notice)) return;
+        StartNoticeTimer();
+    }
 
+    /// <summary>
+    /// サービス自身が出した Web 通知(Slack の「◯◯さんからのメッセージ」など)を受け取り、アプリの通知として出す。
+    /// 以前は Web 通知を全て拒否して、タイトルの未読件数だけで通知していたため、
+    /// 送信者や本文が分からず、タイトルに件数を出さないサービスでは通知自体が出なかった。
+    /// 既定の通知(WebView2が出すもの)は出さず、ミュートや通知の設定、表示中の判定は未読件数の通知と同じに揃える。
+    /// </summary>
+    private void OnNotificationReceived(string id, CoreWebView2NotificationReceivedEventArgs e)
+    {
+        e.Handled = true;
+
+        var config = _configStore.Get();
+        var inst = config.Instances.FirstOrDefault(i => i.Id == id);
+        if (!config.Settings.Notifications || inst?.NotifyMuted == true) return;
+        if (IsUserViewing(id)) return;
+
+        var n = e.Notification;
+        var notice = new WebNotice(id, inst?.Name ?? id, n.Title ?? "", n.Body ?? "", n.IsSilent);
+        _webSources[notice] = n;
+        _batcher.AddWeb(notice);
+        StartNoticeTimer();
+    }
+
+    private void StartNoticeTimer()
+    {
         if (_noticeTimer == null)
         {
             _noticeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
@@ -630,12 +661,17 @@ public class InstanceManager
 
     private void FlushNotices()
     {
-        if (_pendingNotices.Count == 0) return;
-        var items = _pendingNotices.ToList();
-        _pendingNotices.Clear();
+        var (web, unread) = _batcher.Drain();
+        if (web.Count == 0 && unread.Count == 0) return;
 
         var translations = Translations.LoadOrEmpty(_wwwrootDir, _configStore.Get().Settings.Language);
-        var (title, body, primaryId) = NotificationText.Build(items, translations);
+        var (title, body, primaryId) = NotificationText.BuildBatch(web, unread, translations);
+
+        // クリックしたときにページへ知らせる先(先頭の Web 通知)と、表示したことを知らせる先
+        var primary = web.FirstOrDefault(n => n.Id == primaryId);
+        var sources = web.Select(n => _webSources.GetValueOrDefault(n)).Where(s => s != null).Cast<CoreWebView2Notification>().ToList();
+        var clickSource = primary != null ? _webSources.GetValueOrDefault(primary) : null;
+        foreach (var n in web) _webSources.Remove(n);
 
         // 通知をクリックしたら、ウインドウを前面に出して該当サービスを表示する
         Tray?.ShowNotification(title, body, () =>
@@ -643,8 +679,20 @@ public class InstanceManager
             {
                 Tray?.ShowMainWindow();
                 _ = ActivateAsync(primaryId);
+                SafeReport(() => clickSource?.ReportClicked());
             }));
-        Tray?.PlayNotificationSound();
+        foreach (var s in sources) SafeReport(() => s.ReportShown());
+
+        // 消音の指定(IsSilent)の通知だけなら、音は鳴らさない
+        var allSilent = unread.Count == 0 && web.All(n => n.Silent);
+        if (!allSilent) Tray?.PlayNotificationSound();
+    }
+
+    /// <summary>ページへの報告(表示した・クリックされた)。サービスが閉じられていると失敗するので、握りつぶす。</summary>
+    private static void SafeReport(Action report)
+    {
+        try { report(); }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidOperationException or ObjectDisposedException) { }
     }
 
     /// <summary>
@@ -747,7 +795,7 @@ public class InstanceManager
     /// <summary>
     /// カメラ/マイクは既定では権限バーが出るだけで、枠なしウインドウだと見落とされ
     /// Slackハドル等の通話機能が無反応に見える原因になるため自動許可する。
-    /// Web標準通知は独自の未読監視/トレイ通知と重複するため拒否する。
+    /// Web標準通知は許可して、NotificationReceived でアプリの通知として出す(既定の通知は出さない)。
     /// </summary>
     private void OnPermissionRequested(CoreWebView2PermissionRequestedEventArgs e)
     {
@@ -758,7 +806,7 @@ public class InstanceManager
                 e.State = CoreWebView2PermissionState.Allow;
                 break;
             case CoreWebView2PermissionKind.Notifications:
-                e.State = CoreWebView2PermissionState.Deny;
+                e.State = CoreWebView2PermissionState.Allow;
                 break;
             default:
                 break;

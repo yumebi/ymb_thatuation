@@ -184,6 +184,9 @@
     cursor: pointer;
   }
   .tool:hover { background: var(--bg-chip-hover, #41434d); color: #fff; }
+  /* 新しいバージョンがあるときだけ出る更新ボタン */
+  .tool.update { background: var(--accent, #3b82f6); color: #fff; }
+  .tool.update:hover { filter: brightness(1.15); }
   #status {
     font-size: 10px;
     color: var(--danger, #e05d5d);
@@ -197,6 +200,7 @@
 <div id="bar">
   <div id="services"></div>
   <div id="status"></div>
+  <button class="tool update" id="update" hidden>⬆</button>
   <button class="tool" id="downloads" data-i18n-title="sidebar.downloads" title="ダウンロードフォルダを開く">⬇</button>
   <button class="tool" id="settings" data-i18n-title="sidebar.settings" title="設定">⚙</button>
 </div>
@@ -295,7 +299,27 @@
     } catch (e) {
       showError(e);
     }
+    refreshUpdateButton();
   }
+
+  // 本体の新バージョンが見つかっていれば、更新ボタンを出す(通知を見逃した人のために、常に見える場所に残す)
+  async function refreshUpdateButton() {
+    try {
+      const u = await invoke("app_update");
+      const btn = document.getElementById("update");
+      btn.hidden = !u.available;
+      if (u.available) {
+        btn.title = t("sidebar.update", { version: u.latest });
+        btn.dataset.url = u.url || "";
+      }
+    } catch (_) {
+      // 更新ボタンが出せなくても、本体の動作には影響しない
+    }
+  }
+  document.getElementById("update").addEventListener("click", (ev) => {
+    const url = ev.currentTarget.dataset.url;
+    if (url) invoke("open_url", { url }).catch(showError);
+  });
 
   function showContextMenu(x, y, inst) {
     if (!inst) return;

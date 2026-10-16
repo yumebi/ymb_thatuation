@@ -33,6 +33,51 @@ public static class NotificationText
         return (Truncate(title, MaxTitleLength), Truncate(list, MaxBodyLength), items[0].Id);
     }
 
+    /// <summary>
+    /// Web 通知と未読件数の通知をまとめて、1つの通知の文言にする。
+    /// 1件だけなら、Web 通知は「サービス名 · 題名」と本文、未読件数は従来どおり。
+    /// 複数なら、件数と、それぞれの要約を並べる。
+    /// </summary>
+    /// <returns>タイトル、本文、クリックしたときに開くサービスのId。</returns>
+    public static (string Title, string Body, string PrimaryId) BuildBatch(
+        IReadOnlyList<WebNotice> web, IReadOnlyList<UnreadNotice> unread,
+        IReadOnlyDictionary<string, string> translations)
+    {
+        var total = web.Count + unread.Count;
+        if (total == 0) throw new ArgumentException("通知対象がありません。", nameof(web));
+
+        if (web.Count == 0) return Build(unread, translations);
+
+        if (total == 1)
+        {
+            var n = web[0];
+            var title = string.IsNullOrWhiteSpace(n.Title) ? n.ServiceName : $"{n.ServiceName} · {n.Title.Trim()}";
+            return (Truncate(title, MaxTitleLength), Truncate(n.Body.Trim(), MaxBodyLength), n.Id);
+        }
+
+        var lines = new List<string>();
+        foreach (var n in web)
+        {
+            var summary = string.IsNullOrWhiteSpace(n.Title) ? n.ServiceName : $"{n.ServiceName}: {n.Title.Trim()}";
+            var firstLine = FirstLine(n.Body);
+            lines.Add(firstLine.Length > 0 ? $"{summary} — {firstLine}" : summary);
+        }
+        foreach (var u in unread)
+        {
+            lines.Add($"{u.Name} ({u.Count})");
+        }
+
+        var heading = Format(translations, "notify.batch.title", "{n} 件の新着", ("n", total.ToString()));
+        return (Truncate(heading, MaxTitleLength), Truncate(string.Join("\n", lines), MaxBodyLength), web[0].Id);
+    }
+
+    private static string FirstLine(string text)
+    {
+        var trimmed = text.Trim();
+        var index = trimmed.IndexOfAny(new[] { '\r', '\n' });
+        return index < 0 ? trimmed : trimmed[..index].TrimEnd();
+    }
+
     public static string Format(
         IReadOnlyDictionary<string, string> translations, string key, string fallback,
         params (string Name, string Value)[] values)

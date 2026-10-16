@@ -171,5 +171,6 @@
   "download.progress": "Downloading…",
   "download.done": "Download complete · Click to open the folder",
   "download.failed": "Download was canceled or failed",
-  "tray.reset_position": "Reset window position"
+  "tray.reset_position": "Reset window position",
+  "sidebar.update": "New version v{version} is available (click to open the download page)"
 }

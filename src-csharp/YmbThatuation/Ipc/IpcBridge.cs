@@ -73,6 +73,7 @@ public class IpcBridge
                 "get_app_version" => GetAppVersion(),
                 "check_for_app_update" => await CheckForAppUpdate(),
                 "open_url" => OpenUrl(args),
+                "app_update" => GetAppUpdate(),
                 _ => throw new InvalidOperationException($"未実装のコマンド: {command}"),
             };
 
@@ -379,6 +380,21 @@ public class IpcBridge
         _instanceManager.ApplyUrlBarVisibility();
         if (_configStore.Get().Settings.Theme != themeBefore) ThemeChanged?.Invoke();
         return null;
+    }
+
+    /// <summary>本体の新バージョンが見つかっているか(サイドバーの更新ボタンの表示用)。</summary>
+    private object GetAppUpdate()
+    {
+        var update = _instanceManager.AppUpdate;
+        if (update is not { UpdateAvailable: true })
+            return new Dictionary<string, object?> { ["available"] = false };
+
+        return new Dictionary<string, object?>
+        {
+            ["available"] = true,
+            ["latest"] = update.LatestVersion,
+            ["url"] = update.ReleaseUrl,
+        };
     }
 
     /// <summary>設定画面から更新ページ等のURLを既定ブラウザで開く。</summary>

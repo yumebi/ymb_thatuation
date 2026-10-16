@@ -171,5 +171,6 @@
   "download.progress": "ダウンロード中…",
   "download.done": "ダウンロード完了 ・ クリックでフォルダを開く",
   "download.failed": "ダウンロードがキャンセル/失敗しました",
-  "tray.reset_position": "ウインドウ位置をリセット"
+  "tray.reset_position": "ウインドウ位置をリセット",
+  "sidebar.update": "新しいバージョン v{version} があります(クリックでダウンロードページを開く)"
 }

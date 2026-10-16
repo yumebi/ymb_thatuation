@@ -332,17 +332,19 @@ public partial class MainWindow : Window
         }
         if (!result.UpdateAvailable) return;
 
-        if (configStore.Get().Settings.Notifications)
-        {
-            var t = Translations.LoadOrEmpty(Path.Combine(AppContext.BaseDirectory, "wwwroot"), configStore.Get().Settings.Language);
-            tray?.ShowNotification(
-                NotificationText.Format(t, "notify.update.title", "新しいバージョンがあります"),
-                NotificationText.Format(
-                    t, "notify.update.body", "v{latest} (現在 v{current})。クリックでダウンロードページを開きます",
-                    ("latest", result.LatestVersion?.ToString() ?? ""), ("current", result.CurrentVersion?.ToString() ?? "")),
-                () => InstanceManager.OpenInExternalBrowser(result.ReleaseUrl));
-            tray?.PlayNotificationSound();
-        }
+        // サイドバーの更新ボタンを出すために、結果を覚えておく
+        instanceManager.AppUpdate = result;
+
+        // 本体の更新の案内は、サービスの通知(新着)のオン・オフとは別の話なので、通知を切っていても出す。
+        // 以前は通知を切っていると、更新があることに気づく手段が無かった。音だけは、通知を有効にしている人にだけ鳴らす。
+        var t = Translations.LoadOrEmpty(Path.Combine(AppContext.BaseDirectory, "wwwroot"), configStore.Get().Settings.Language);
+        tray?.ShowNotification(
+            NotificationText.Format(t, "notify.update.title", "新しいバージョンがあります"),
+            NotificationText.Format(
+                t, "notify.update.body", "v{latest} (現在 v{current})。クリックでダウンロードページを開きます",
+                ("latest", result.LatestVersion?.ToString() ?? ""), ("current", result.CurrentVersion?.ToString() ?? "")),
+            () => InstanceManager.OpenInExternalBrowser(result.ReleaseUrl));
+        if (configStore.Get().Settings.Notifications) tray?.PlayNotificationSound();
     }
 
     /// <summary>
