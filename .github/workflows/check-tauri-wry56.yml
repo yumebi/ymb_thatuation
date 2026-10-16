@@ -1,4 +1,4 @@
-name: Check Tauri wry 0.56 (with_profile_name)
+name: Check Tauri with_profile_name support
 
 on:
   schedule:
@@ -15,7 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Check tauri-runtime-wry dependency on wry
+      # 「wry が 0.56 以上に依存しているか」では不十分だった。wry 側に with_profile_name があっても、
+      # tauri-runtime-wry がそれを呼ばなければ Tauri アプリからは使えない(Tauri の API には出ない)。
+      # そのため、最新の安定版 tauri-runtime-wry のソースを取得して、呼び出しの有無を直接確認する。
+      # 上流の対応待ち: https://github.com/tauri-apps/tauri/pull/16054
+      - name: Check whether tauri-runtime-wry calls with_profile_name
         id: wry
         shell: pwsh
         run: |
@@ -23,56 +27,49 @@ jobs:
             $text = ([string]$Value).Replace("`r", ' ').Replace("`n", ' ')
             "$Name=$text" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           }
-          $headers = @{ 'User-Agent' = 'ymb-check-tauri-wry56' }
+          $headers = @{ 'User-Agent' = 'ymb-check-tauri-profile-name' }
           try {
             $crate = Invoke-RestMethod -Uri 'https://crates.io/api/v1/crates/tauri-runtime-wry' -Headers $headers
             $trwVersion = $crate.crate.max_stable_version
-            $deps = Invoke-RestMethod -Uri "https://crates.io/api/v1/crates/tauri-runtime-wry/$trwVersion/dependencies" -Headers $headers
-            $wryDep = $deps.dependencies | Where-Object { $_.crate_id -eq 'wry' }
-            if (-not $wryDep) {
-              Set-Output 'major' 0
-              Set-Output 'minor' 0
-              Set-Output 'usable' 'false'
-              Set-Output 'wry_req' 'none'
-              Set-Output 'trw_version' $trwVersion
-            } else {
-              $m = [regex]::Match($wryDep.req, '^[\^=\s]*(\d+)\.(\d+)')
-              $major = if ($m.Success) { [int]$m.Groups[1].Value } else { 0 }
-              $minor = if ($m.Success) { [int]$m.Groups[2].Value } else { 0 }
-              $usable = ($major -gt 0) -or ($major -eq 0 -and $minor -ge 56)
-              Set-Output 'major' $major
-              Set-Output 'minor' $minor
-              Set-Output 'usable' $usable.ToString().ToLower()
-              Set-Output 'wry_req' $wryDep.req
-              Set-Output 'trw_version' $trwVersion
-              Write-Host "tauri-runtime-wry $trwVersion -> wry $($wryDep.req) (usable=$usable)"
-            }
+            $work = Join-Path $env:RUNNER_TEMP 'trw'
+            New-Item -ItemType Directory -Force -Path $work | Out-Null
+            $archive = Join-Path $work 'trw.crate'
+            Invoke-WebRequest -Uri "https://crates.io/api/v1/crates/tauri-runtime-wry/$trwVersion/download" -Headers $headers -OutFile $archive
+            # GNU tar は "C:" をリモートホストと解釈するので、絶対パスを渡さず相対パスで展開する
+            Push-Location $work
+            try { tar -xzf trw.crate } finally { Pop-Location }
+            if ($LASTEXITCODE -ne 0) { throw "ソースの展開に失敗しました (tar exit $LASTEXITCODE)" }
+            $files = @(Get-ChildItem -Path $work -Recurse -Filter *.rs)
+            if ($files.Count -eq 0) { throw 'ソースが見つかりません(取得内容が想定と違います)' }
+            $hits = @($files | Select-String -Pattern '\.with_profile_name\s*\(' -List)
+            $usable = $hits.Count -gt 0
+            Set-Output 'usable' $usable.ToString().ToLower()
+            Set-Output 'trw_version' $trwVersion
+            Write-Host "tauri-runtime-wry ${trwVersion}: with_profile_name の呼び出し $($hits.Count) ファイル (usable=$usable)"
           } catch {
             # 取得失敗を成功扱いにすると監視が黙って止まるので、実行を失敗させて気づけるようにする
-            Write-Host "::error::crates.io の取得に失敗しました: $($_.Exception.Message)"
+            Write-Host "::error::確認に失敗しました: $($_.Exception.Message)"
             exit 1
           }
 
-      - name: Create issue if wry 0.56+ is available via Tauri
+      - name: Create issue if Tauri can set a WebView2 profile name
         if: steps.wry.outputs.usable == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $title = 'Tauri が wry 0.56 (with_profile_name) に対応しました'
+          $title = 'Tauri が WebView2 のプロファイル名指定 (with_profile_name) に対応しました'
           $open = gh issue list --search "$title in:title" --state open --json number --jq 'length'
           if ($open -gt 0) {
             Write-Output "既にオープンのIssueがあるためスキップします"
           } else {
             $body = @(
-              "tauri-runtime-wry が wry 0.56 以上に追従し、`with_profile_name` が Tauri アプリから使えるようになりました。"
+              "tauri-runtime-wry のソースに with_profile_name の呼び出しが入り、Tauri アプリからプロファイル名を指定できるようになった可能性があります。"
               "- tauri-runtime-wry: ${{ steps.wry.outputs.trw_version }}"
-              "- wry 依存: ${{ steps.wry.outputs.wry_req }}"
               ""
-              "これで Tauri 版 ymb_thatuation (src-tauri/) の開発保留理由が解消されました。"
-              "マルチインスタンスのプロファイル分離 (CoreWebView2ControllerOptions.ProfileName) を"
-              "WebViewBuilderExtWindows::with_profile_name で実装し、開発を再開できます。"
-              "この Issue のクローズをもって対応完了とします。"
+              "Tauri 版 ymb_thatuation (src-tauri/) の開発保留理由(インスタンスごとのプロファイル分離を、ブラウザプロセスを共有したまま行えない)が解消されたかを、"
+              "実際に Tauri の API から指定できるか確認してください。"
+              "確認が済んだらこの Issue をクローズしてください。"
             ) -join "`n"
             gh issue create --title $title --body $body
           }
