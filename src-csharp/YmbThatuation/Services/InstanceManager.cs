@@ -76,8 +76,9 @@ public class InstanceManager
     private readonly Dictionary<string, System.Windows.Controls.TextBox> _urlBars = new();
     private readonly Dictionary<string, RowDefinition> _urlBarRows = new();
     private readonly Dictionary<string, uint> _unread = new();
-    private readonly Dictionary<string, uint> _lastNotified = new();
-    private readonly Dictionary<string, DateTime> _zeroSince = new();
+    private readonly UnreadNotificationTracker _notifyTracker = new();
+    private readonly List<UnreadNotice> _pendingNotices = new();
+    private System.Windows.Threading.DispatcherTimer? _noticeTimer;
     private readonly Dictionary<string, DateTime> _hiddenSince = new();
     private readonly Dictionary<string, bool> _mediaPlaying = new();
     private WebView2? _settingsWebView;
@@ -517,8 +518,8 @@ public class InstanceManager
 
     private void ClearUnread(string id)
     {
-        _lastNotified.Remove(id);
-        _zeroSince.Remove(id);
+        _notifyTracker.Remove(id);
+        _pendingNotices.RemoveAll(n => n.Id == id);
         if (_unread.Remove(id))
         {
             Tray?.UpdateOverlayBadge(_unread.Values.Sum(v => (int)v));
@@ -584,38 +585,66 @@ public class InstanceManager
         _unread[id] = count;
         Tray?.UpdateOverlayBadge(_unread.Values.Sum(v => (int)v));
 
-        if (count == 0)
-        {
-            // 未読0への遷移時刻だけ記録する。Google Chat等のSPAは自前でタイトルを
-            // 頻繁に書き換えるため、注入スクリプトが付けた"(N)"が一時的に消えて
-            // 0に見えることがある。ここで通知基準値(_lastNotified)を下げると
-            // 直後の0→Nの揺れ戻りが毎回「新着」扱いになり通知が延々繰り返される。
-            _zeroSince.TryAdd(id, DateTime.UtcNow);
-            return;
-        }
-
-        // 未読0が一定時間続いた後の増加だけを「既読後の新着」とみなして基準値を
-        // リセットする。短時間で0→Nに戻った場合はタイトル書き換えによる揺れなので
-        // 基準値を維持し、同じ件数では再通知しない(件数が増えた場合のみ通知される)。
-        if (_zeroSince.Remove(id, out var since) && DateTime.UtcNow - since >= TimeSpan.FromSeconds(15))
-        {
-            _lastNotified.Remove(id);
-        }
+        // 新着として通知するかどうかは、件数の推移だけで決める(UnreadNotificationTracker)。
+        if (!_notifyTracker.OnCountChanged(id, count)) return;
 
         var config = _configStore.Get();
         var inst = config.Instances.FirstOrDefault(i => i.Id == id);
-        if (config.Settings.Notifications && count > _lastNotified.GetValueOrDefault(id, 0u) && inst?.NotifyMuted != true)
+        if (!config.Settings.Notifications || inst?.NotifyMuted == true) return;
+
+        // 本アプリを前面で見ていて、そのサービスが表示中なら、通知しても邪魔なだけなので出さない。
+        if (IsUserViewing(id)) return;
+
+        QueueNotice(new UnreadNotice(id, inst?.Name ?? id, count));
+    }
+
+    /// <summary>そのサービスが、いまユーザーの目の前に表示されているか。</summary>
+    private bool IsUserViewing(string id)
+    {
+        if (ActiveId != id) return false;
+        var window = System.Windows.Application.Current?.MainWindow;
+        return window is { IsVisible: true, IsActive: true } && window.WindowState != WindowState.Minimized;
+    }
+
+    /// <summary>
+    /// 通知を溜める。バルーンは1度に1つしか出せず、続けて出すと前のものが消えてしまうため、
+    /// 少しだけ待って、その間に来たものを1つの通知にまとめる。
+    /// </summary>
+    private void QueueNotice(UnreadNotice notice)
+    {
+        var index = _pendingNotices.FindIndex(n => n.Id == notice.Id);
+        if (index >= 0) _pendingNotices[index] = notice;
+        else _pendingNotices.Add(notice);
+
+        if (_noticeTimer == null)
         {
-            _lastNotified[id] = count;
-            // 通知バルーンをクリックしたら、ウインドウを前面に出して該当サービスを表示する
-            Tray?.ShowNotification(inst?.Name ?? id, $"未読 {count} 件", () =>
-                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
-                {
-                    Tray?.ShowMainWindow();
-                    _ = ActivateAsync(id);
-                }));
-            Tray?.PlayNotificationSound();
+            _noticeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+            _noticeTimer.Tick += (_, _) =>
+            {
+                _noticeTimer.Stop();
+                FlushNotices();
+            };
         }
+        if (!_noticeTimer.IsEnabled) _noticeTimer.Start();
+    }
+
+    private void FlushNotices()
+    {
+        if (_pendingNotices.Count == 0) return;
+        var items = _pendingNotices.ToList();
+        _pendingNotices.Clear();
+
+        var translations = Translations.LoadOrEmpty(_wwwrootDir, _configStore.Get().Settings.Language);
+        var (title, body, primaryId) = NotificationText.Build(items, translations);
+
+        // 通知をクリックしたら、ウインドウを前面に出して該当サービスを表示する
+        Tray?.ShowNotification(title, body, () =>
+            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            {
+                Tray?.ShowMainWindow();
+                _ = ActivateAsync(primaryId);
+            }));
+        Tray?.PlayNotificationSound();
     }
 
     /// <summary>
@@ -731,7 +760,9 @@ public class InstanceManager
     {
         var op = e.DownloadOperation;
         var fileName = System.IO.Path.GetFileName(op.ResultFilePath);
-        var win = new DownloadNotificationWindow(fileName, op.ResultFilePath);
+        var settings = _configStore.Get().Settings;
+        var translations = Translations.LoadOrEmpty(_wwwrootDir, settings.Language);
+        var win = new DownloadNotificationWindow(fileName, op.ResultFilePath, ThemePalette.Get(settings.Theme), translations);
         win.SetCancelAction(() => op.Cancel());
         win.Show();
 

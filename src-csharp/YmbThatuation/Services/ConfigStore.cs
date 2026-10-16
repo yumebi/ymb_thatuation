@@ -10,11 +10,19 @@ public class ConfigStore
     private readonly object _lock = new();
     private Config _config;
 
+    /// <summary>開発・動作確認用。設定すると、保存先をこのフォルダに切り替える。</summary>
+    public const string DataDirEnvVar = "YMB_THATUATION_DATA_DIR";
+
     public ConfigStore()
     {
-        var appData = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "jp.yumebi.thatuation-cs");
+        // 本番の設定やログイン情報に触れずに起動して確かめられるよう、環境変数で保存先を変えられる。
+        var appData = Environment.GetEnvironmentVariable(DataDirEnvVar);
+        if (string.IsNullOrWhiteSpace(appData))
+        {
+            appData = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "jp.yumebi.thatuation-cs");
+        }
         AppDataDir = appData;
         _configPath = Path.Combine(appData, "config", "config.json");
         _config = Load();

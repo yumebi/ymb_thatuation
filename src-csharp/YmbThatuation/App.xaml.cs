@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using YmbThatuation.Services;
 
 namespace YmbThatuation;
 
@@ -10,11 +11,23 @@ namespace YmbThatuation;
 /// </summary>
 public partial class App : System.Windows.Application
 {
-    private const string MutexName = "jp.yumebi.thatuation-cs.single-instance";
+    // 保存先を環境変数で切り替えている場合(動作確認用)は、本番の起動と二重起動扱いにならないよう名前を分ける。
+    private static readonly string InstanceSuffix = DataDirSuffix();
+    private static readonly string MutexName = "jp.yumebi.thatuation-cs.single-instance" + InstanceSuffix;
+    private static readonly string ActivateEventName = "jp.yumebi.thatuation-cs.activate" + InstanceSuffix;
     private const string WindowTitle = "YMB Thatuation";
     private const int SW_RESTORE = 9;
 
     private Mutex? _mutex;
+    private EventWaitHandle? _activateEvent;
+
+    private static string DataDirSuffix()
+    {
+        var dir = Environment.GetEnvironmentVariable(ConfigStore.DataDirEnvVar);
+        if (string.IsNullOrWhiteSpace(dir)) return "";
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(dir.ToLowerInvariant()));
+        return "." + Convert.ToHexString(hash)[..12];
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -31,11 +44,17 @@ public partial class App : System.Windows.Application
 
         if (!createdNew)
         {
-            var hwnd = FindWindow(null, WindowTitle);
-            if (hwnd != IntPtr.Zero)
+            // 先に起動している本体へ「前面に出して」と知らせる。本体側(WPF)の状態と食い違わず、
+            // 最大化も維持される。タイトルでウインドウを探す方法より確実。
+            if (!SignalFirstInstance())
             {
-                ShowWindow(hwnd, SW_RESTORE);
-                SetForegroundWindow(hwnd);
+                // 通知の仕組みを持たない旧バージョンが動いている場合は、従来の方法で前面に出す。
+                var hwnd = FindWindow(null, WindowTitle);
+                if (hwnd != IntPtr.Zero)
+                {
+                    ShowWindow(hwnd, SW_RESTORE);
+                    SetForegroundWindow(hwnd);
+                }
             }
 
             // この時点ではDispatcherのRun()が始まっていないため、Shutdown()では
@@ -48,6 +67,57 @@ public partial class App : System.Windows.Application
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
         base.OnStartup(e);
+
+        StartActivationListener();
+
+        // StartupUriではなくコードで表示する。位置の復元や最小化起動の判断を、表示の前に
+        // MainWindowの中で済ませるため。
+        var window = new YmbThatuation.MainWindow();
+        MainWindow = window;
+        window.Show();
+    }
+
+    /// <summary>2つ目の起動から「前面に出して」と通知を受ける待ち受けを始める。</summary>
+    private void StartActivationListener()
+    {
+        var activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateEventName);
+        _activateEvent = activateEvent;
+        var thread = new Thread(() =>
+        {
+            while (true)
+            {
+                try
+                {
+                    activateEvent.WaitOne();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+                Dispatcher.BeginInvoke(() => (MainWindow as YmbThatuation.MainWindow)?.RestoreFromTray());
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "activate-listener",
+        };
+        thread.Start();
+    }
+
+    private static bool SignalFirstInstance()
+    {
+        try
+        {
+            // 2つ目のプロセスはユーザー操作で起動された直後なので、前面化の権限を持っている。
+            // それを先に起動していた本体にも許可して、前面に出られるようにする。
+            Win32.AllowSetForegroundWindow(Win32.ASFW_ANY);
+            using var handle = EventWaitHandle.OpenExisting(ActivateEventName);
+            return handle.Set();
+        }
+        catch (Exception e) when (e is WaitHandleCannotBeOpenedException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

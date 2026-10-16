@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -23,16 +24,51 @@ public partial class MainWindow : Window
     private uint _browserProcessId;
     private System.Windows.Threading.DispatcherTimer? _welcomeTimer;
     private string? _welcomePendingId;
+    private System.Windows.Threading.DispatcherTimer? _saveTimer;
+    private string? _lastActiveId;
+    private bool _stateRestored;
+    private bool _startHidden;
+    private WindowState _lastNonMinimizedState = WindowState.Normal;
 
     public MainWindow()
     {
+        // 位置の復元と最小化起動の判断を表示の前に行うため、設定の読み込みはここで行う。
+        _configStore = new ConfigStore();
+        _windowState = new WindowStateService(_configStore);
+
         InitializeComponent();
+        ApplyTheme();
+
+        // 「最小化で起動」: 表示してからHide()すると一瞬ウインドウが見えてしまう。
+        // タスクバーにも出さず・アクティブにもせず最小化の状態で作り、WebView2の初期化
+        // (Loadedで走る)が済んでから隠す。
+        _startHidden = _configStore.Get().Settings.StartMinimized;
+        if (_startHidden)
+        {
+            ShowInTaskbar = false;
+            ShowActivated = false;
+        }
+
+        SourceInitialized += OnSourceInitialized;
+        StateChanged += (_, _) =>
+        {
+            if (WindowState != WindowState.Minimized) _lastNonMinimizedState = WindowState;
+            ScheduleSave();
+        };
+        LocationChanged += (_, _) => ScheduleSave();
+        SizeChanged += (_, _) => ScheduleSave();
+        SidebarWebView.SizeChanged += (_, _) => ScheduleSave();
+
+        // ログオフ・シャットダウン時はClosingが呼ばれないことがあるため、ここでも保存する。
+        if (System.Windows.Application.Current is { } app)
+        {
+            app.SessionEnding += (_, _) => SaveWindowState();
+        }
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         var wwwroot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-        _configStore = new ConfigStore();
 
         // 再インストール/バージョン更新でexeパスが変わった場合、レジストリRunキーが
         // 古いパスのまま残って自動起動が効かなくなることがあるため、有効時は毎回
@@ -42,8 +78,7 @@ public partial class MainWindow : Window
             AutostartService.SetEnabled(true);
         }
 
-        _windowState = new WindowStateService(_configStore);
-        var lastActiveId = _windowState.Restore(this);
+        var lastActiveId = _lastActiveId;
 
         var webview2DataDir = Path.Combine(_configStore.AppDataDir, "webview2");
         var environmentOptions = new CoreWebView2EnvironmentOptions
@@ -73,6 +108,7 @@ public partial class MainWindow : Window
         _instanceManager.Popup = new PopupManager();
         var bridge = new IpcBridge(_configStore, _instanceManager, wwwroot);
         _instanceManager.Bridge = bridge;
+        bridge.ThemeChanged += () => Dispatcher.BeginInvoke(ApplyTheme);
 
         _tray = new TrayService(this, _configStore, wwwroot);
         _instanceManager.Tray = _tray;
@@ -90,10 +126,7 @@ public partial class MainWindow : Window
         _ = CheckExtensionUpdatesAsync(_instanceManager, _configStore, _tray);
         _ = CheckAppUpdateAsync(_instanceManager, _configStore, _tray);
 
-        if (_configStore.Get().Settings.StartMinimized)
-        {
-            Hide();
-        }
+        FinishHiddenStartup();
     }
 
     /// <summary>
@@ -270,7 +303,10 @@ public partial class MainWindow : Window
 
         if (configStore.Get().Settings.Notifications)
         {
-            tray?.ShowNotification("拡張機能を更新しました", string.Join("\n", updated));
+            var t = Translations.LoadOrEmpty(Path.Combine(AppContext.BaseDirectory, "wwwroot"), configStore.Get().Settings.Language);
+            tray?.ShowNotification(
+                NotificationText.Format(t, "notify.ext_updated", "拡張機能を更新しました"),
+                string.Join("\n", updated));
             tray?.PlayNotificationSound();
         }
     }
@@ -297,9 +333,12 @@ public partial class MainWindow : Window
 
         if (configStore.Get().Settings.Notifications)
         {
+            var t = Translations.LoadOrEmpty(Path.Combine(AppContext.BaseDirectory, "wwwroot"), configStore.Get().Settings.Language);
             tray?.ShowNotification(
-                "新しいバージョンがあります",
-                $"v{result.LatestVersion} (現在 v{result.CurrentVersion})。クリックでダウンロードページを開きます",
+                NotificationText.Format(t, "notify.update.title", "新しいバージョンがあります"),
+                NotificationText.Format(
+                    t, "notify.update.body", "v{latest} (現在 v{current})。クリックでダウンロードページを開きます",
+                    ("latest", result.LatestVersion?.ToString() ?? ""), ("current", result.CurrentVersion?.ToString() ?? "")),
                 () => InstanceManager.OpenInExternalBrowser(result.ReleaseUrl));
             tray?.PlayNotificationSound();
         }
@@ -393,10 +432,13 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
-        _windowState?.Save(this, _instanceManager?.ActiveId);
+        SaveWindowState();
+        _saveTimer?.Stop();
 
         if (_tray == null || _tray.IsExiting)
         {
+            // 終了処理(WebView2のプロセス終了待ち)は最大数秒かかる。先に隠して、固まって見えないようにする。
+            HideNow();
             _tray?.Dispose();
             _instanceManager?.DisposeAll();
             WaitForBrowserProcessExit();
@@ -410,6 +452,7 @@ public partial class MainWindow : Window
         }
         else
         {
+            HideNow();
             _tray.Dispose();
             _instanceManager?.DisposeAll();
             WaitForBrowserProcessExit();
@@ -433,5 +476,96 @@ public partial class MainWindow : Window
         {
             // 既に終了している。
         }
+    }
+
+    /// <summary>
+    /// HWNDの作成後・初回表示の前に呼ばれる。位置の復元とタイトルバーの配色をここで済ませるので、
+    /// 既定の位置に一瞬出てから動く、ということが起きない。
+    /// </summary>
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        var restored = _windowState!.Apply(this);
+        _lastActiveId = restored.LastActiveId;
+        if (restored.Maximized) _lastNonMinimizedState = WindowState.Maximized;
+
+        ApplyTheme();
+
+        if (_startHidden)
+        {
+            WindowState = WindowState.Minimized;
+        }
+        else if (restored.Maximized)
+        {
+            WindowState = WindowState.Maximized;
+        }
+        _stateRestored = true;
+    }
+
+    /// <summary>ウインドウの背景とタイトルバーを、現在のテーマの配色にする。</summary>
+    public void ApplyTheme()
+    {
+        if (_configStore == null) return;
+        var theme = ThemePalette.Get(_configStore.Get().Settings.Theme);
+        Background = new SolidColorBrush(TitleBarTheme.ParseColor(theme.Bar));
+        TitleBarTheme.Apply(this, theme);
+    }
+
+    /// <summary>
+    /// 移動・サイズ変更の後、少し待ってから位置を保存する。終了時だけの保存だと、
+    /// 強制終了や再起動で直前の位置が失われる。
+    /// </summary>
+    private void ScheduleSave()
+    {
+        if (!_stateRestored) return;
+        if (_saveTimer == null)
+        {
+            _saveTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+            _saveTimer.Tick += (_, _) =>
+            {
+                _saveTimer.Stop();
+                SaveWindowState();
+            };
+        }
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    private void SaveWindowState()
+    {
+        if (!_stateRestored) return;
+        _windowState?.Save(this, _instanceManager?.ActiveId);
+    }
+
+    /// <summary>
+    /// トレイや通知、2つ目の起動から呼ばれて、ウインドウを前面に出す。
+    /// 最小化から戻すときは、最小化する前の状態(最大化など)に戻す。
+    /// </summary>
+    public void RestoreFromTray()
+    {
+        if (!IsVisible) Show();
+        if (WindowState == WindowState.Minimized) WindowState = _lastNonMinimizedState;
+        Activate();
+        // 他のアプリが前面にあるとActivateだけでは前に出ないことがある。Topmostを一瞬切り替えて確実に出す。
+        Topmost = true;
+        Topmost = false;
+        Focus();
+    }
+
+    /// <summary>WPFの状態を変えずに、ウインドウだけを画面から消す(Closing中でも呼べる)。</summary>
+    private void HideNow()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero) Win32.ShowWindow(hwnd, Win32.SW_HIDE);
+    }
+
+    /// <summary>「最小化で起動」の後始末。WebView2の初期化が済んだので、ウインドウを隠して通常の状態に戻す。</summary>
+    private void FinishHiddenStartup()
+    {
+        if (!_startHidden) return;
+        _startHidden = false;
+        Hide();
+        ShowInTaskbar = true;
+        ShowActivated = true;
+        WindowState = _lastNonMinimizedState;
     }
 }

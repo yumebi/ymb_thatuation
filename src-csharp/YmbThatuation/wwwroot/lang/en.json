@@ -162,5 +162,13 @@
   "settings.import": "Import settings",
   "settings.export_done": "Settings exported",
   "settings.import_confirm": "This will overwrite the current settings (service list and general settings) with the selected file.\nLogin sessions will not be changed. Continue?",
-  "settings.import_done": "Settings imported. Restart the application to apply"
+  "settings.import_done": "Settings imported. Restart the application to apply",
+  "notify.unread": "{count} unread",
+  "notify.multi.title": "New activity in {n} services",
+  "notify.ext_updated": "Extensions updated",
+  "notify.update.title": "A new version is available",
+  "notify.update.body": "v{latest} (current v{current}). Click to open the download page",
+  "download.progress": "Downloading…",
+  "download.done": "Download complete · Click to open the folder",
+  "download.failed": "Download was canceled or failed"
 }

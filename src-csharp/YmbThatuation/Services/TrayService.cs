@@ -48,8 +48,15 @@ public class TrayService : IDisposable
 
     public void ShowMainWindow()
     {
+        if (_window is MainWindow main)
+        {
+            // 最小化する前の状態(最大化など)に戻す。Normal固定にすると最大化が解除されてしまう。
+            main.RestoreFromTray();
+            return;
+        }
+
         _window.Show();
-        _window.WindowState = WindowState.Normal;
+        if (_window.WindowState == WindowState.Minimized) _window.WindowState = WindowState.Normal;
         _window.Activate();
     }
 
@@ -77,17 +84,32 @@ public class TrayService : IDisposable
     public void UpdateOverlayBadge(int total)
     {
         _window.TaskbarItemInfo ??= new TaskbarItemInfo();
-        _window.TaskbarItemInfo.Overlay = total > 0 ? CreateBadge() : null;
+        _window.TaskbarItemInfo.Overlay = total > 0 ? CreateBadge(total) : null;
     }
 
-    private static ImageSource CreateBadge()
+    /// <summary>赤い丸に未読の合計件数を描く(100件以上は「99+」)。</summary>
+    private static ImageSource CreateBadge(int total)
     {
         const int size = 32;
+        var label = total > 99 ? "99+" : total.ToString();
+        var fontSize = label.Length switch { 1 => 24.0, 2 => 20.0, _ => 15.0 };
+
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
             var brush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xe0, 0x5d, 0x5d));
             dc.DrawEllipse(brush, null, new System.Windows.Point(size / 2.0, size / 2.0), size / 2.0 - 1, size / 2.0 - 1);
+
+            var text = new FormattedText(
+                label,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Windows.FlowDirection.LeftToRight,
+                new Typeface(new System.Windows.Media.FontFamily("Segoe UI"), System.Windows.FontStyles.Normal,
+                    System.Windows.FontWeights.Bold, System.Windows.FontStretches.Normal),
+                fontSize,
+                System.Windows.Media.Brushes.White,
+                1.0);
+            dc.DrawText(text, new System.Windows.Point((size - text.Width) / 2.0, (size - text.Height) / 2.0));
         }
         var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(visual);

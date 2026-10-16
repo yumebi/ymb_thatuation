@@ -17,6 +17,9 @@ public class IpcBridge
     private readonly InstanceManager _instanceManager;
     private readonly string _wwwrootDir;
 
+    /// <summary>設定画面でテーマが変更されたときに発生する(ウインドウの配色を追従させる用)。</summary>
+    public event Action? ThemeChanged;
+
     public IpcBridge(ConfigStore configStore, InstanceManager instanceManager, string wwwrootDir)
     {
         _configStore = configStore;
@@ -348,6 +351,7 @@ public class IpcBridge
 
     private object? UpdateSettings(Dictionary<string, JsonElement> args)
     {
+        var themeBefore = _configStore.Get().Settings.Theme;
         _configStore.Update(c =>
         {
             if (args.TryGetValue("sleepAfterMinutes", out var sleepEl))
@@ -373,6 +377,7 @@ public class IpcBridge
         });
         AutostartService.SetEnabled(_configStore.Get().Settings.Autostart);
         _instanceManager.ApplyUrlBarVisibility();
+        if (_configStore.Get().Settings.Theme != themeBefore) ThemeChanged?.Invoke();
         return null;
     }
 

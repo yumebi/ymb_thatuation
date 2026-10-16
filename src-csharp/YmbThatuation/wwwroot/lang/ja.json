@@ -162,5 +162,13 @@
   "settings.import": "設定をインポート",
   "settings.export_done": "設定をエクスポートしました",
   "settings.import_confirm": "選択したファイルの内容で現在の設定(サービス一覧・各種設定)を上書きします。\nログイン情報は変更されません。続行しますか?",
-  "settings.import_done": "設定をインポートしました。反映には本体の再起動が必要です"
+  "settings.import_done": "設定をインポートしました。反映には本体の再起動が必要です",
+  "notify.unread": "未読 {count} 件",
+  "notify.multi.title": "{n} 件のサービスに新着",
+  "notify.ext_updated": "拡張機能を更新しました",
+  "notify.update.title": "新しいバージョンがあります",
+  "notify.update.body": "v{latest} (現在 v{current})。クリックでダウンロードページを開きます",
+  "download.progress": "ダウンロード中…",
+  "download.done": "ダウンロード完了 ・ クリックでフォルダを開く",
+  "download.failed": "ダウンロードがキャンセル/失敗しました"
 }
