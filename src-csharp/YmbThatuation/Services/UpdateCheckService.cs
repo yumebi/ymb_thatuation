@@ -5,14 +5,24 @@ using System.Text.Json.Serialization;
 namespace YmbThatuation.Services;
 
 /// <summary>
-/// GitHubリポジトリのversion.json(raw.githubusercontent.com)を見て、本体の新バージョン有無を確認する。
+/// GitHub の最新リリース(Releases API)を見て、本体の新バージョン有無を確認する。
+/// version.json ではなく公開済みのリリースを見るのは、リリースに失敗しても version.json だけ
+/// 先に更新されて、存在しない版を案内してしまうのを避けるため。
 /// </summary>
 public class UpdateCheckService
 {
-    private const string VersionUrl =
-        "https://raw.githubusercontent.com/yumebi/ymb_thatuation/master/version.json";
+    private const string Repo = "yumebi/ymb_thatuation";
 
-    private static readonly HttpClient Http = new();
+    private static readonly HttpClient Http = CreateHttpClient();
+
+    private static HttpClient CreateHttpClient()
+    {
+        // GitHub API は User-Agent が必須。応答が無いまま固まらないよう、短めに打ち切る
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("YmbThatuation-UpdateCheck");
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        return client;
+    }
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     public static string CurrentVersion
@@ -29,19 +39,16 @@ public class UpdateCheckService
         var current = CurrentVersion;
         try
         {
-            var json = await Http.GetStringAsync(VersionUrl);
-            var remote = JsonSerializer.Deserialize<RemoteVersion>(json, JsonOptions);
-            var latest = remote?.Version ?? current;
-            var updateAvailable = Version.TryParse(latest, out var latestV)
-                && Version.TryParse(current, out var currentV)
-                && latestV > currentV;
+            var json = await Http.GetStringAsync(GitHubRelease.ApiUrl(Repo));
+            var release = GitHubRelease.Parse(json, Repo);
+            var latest = release?.Version ?? current;
 
             return new UpdateCheckResult
             {
                 CurrentVersion = current,
                 LatestVersion = latest,
-                UpdateAvailable = updateAvailable,
-                ReleaseUrl = remote?.Url,
+                UpdateAvailable = release is not null && GitHubRelease.IsNewer(latest, current),
+                ReleaseUrl = release?.Url,
             };
         }
         catch
@@ -50,11 +57,6 @@ public class UpdateCheckService
         }
     }
 
-    private class RemoteVersion
-    {
-        public string? Version { get; set; }
-        public string? Url { get; set; }
-    }
 }
 
 public class UpdateCheckResult
