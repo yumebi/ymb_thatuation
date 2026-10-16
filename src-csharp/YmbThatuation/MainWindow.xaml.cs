@@ -73,7 +73,8 @@ public partial class MainWindow : Window
         // 再インストール/バージョン更新でexeパスが変わった場合、レジストリRunキーが
         // 古いパスのまま残って自動起動が効かなくなることがあるため、有効時は毎回
         // 現在のexeパスで再登録して自己修復する。
-        if (_configStore.Get().Settings.Autostart)
+        // _configStore はコンストラクタで作成済み(位置の復元を表示前に行うため)。
+        if (_configStore!.Get().Settings.Autostart)
         {
             AutostartService.SetEnabled(true);
         }

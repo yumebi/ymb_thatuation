@@ -686,70 +686,30 @@ public class InstanceManager
     }
 
     /// <summary>
-    /// target="_blank"等の新規ウインドウ要求への対応。
-    /// SlackハドルのようにJSがwindow.open()の戻り値(ウインドウ参照)を同期的に使う
-    /// フロー(about:blankの空ポップアップを開いて後からJSで操作するパターン)では、
-    /// 外部ブラウザに逃がすとwindow.open()がnullを返してJS側が例外停止してしまう上、
-    /// e.NewWindowへの割り当て自体もこのアプリの環境ではハングすることを確認済み。
-    /// そのため、about:blank(URI無し)の場合はイベントを一切ハンドルせず、WebView2の
-    /// 既定ポップアップ作成に任せる(鍵マーク操作によるクラッシュはGetBrowserProcessIds
-    /// のtry-catchとOnProcessFailedのBrowserProcessExited処理で被害を抑えている)。
-    /// 実URLへの遷移(OAuth等)はアプリ内ポップアップで完結させる。
+    /// target="_blank"や window.open() による新規ウインドウ要求への対応。
+    /// 親のサービスと同じプロファイルの別ウインドウ(PopupWindow)で開き、NewWindow に割り当てる。
+    /// これにより window.opener / postMessage / window.close() が通常のブラウザと同じように動き、
+    /// OAuth の弾窓や、Slackハドルのように window.open() の戻り値を使うページも完了する。
+    /// about:blank の空ポップアップ(後から JS で中身を書き込むパターン)も同じ経路で扱う。
+    /// ポップアップを作れなかった場合は、URL があれば外部ブラウザで開く。
     /// </summary>
     private void OnNewWindowRequested(string instanceId, CoreWebView2NewWindowRequestedEventArgs e)
     {
-        if (string.IsNullOrEmpty(e.Uri) || e.Uri == "about:blank")
-        {
-            return;
-        }
-
-        e.Handled = true;
-
         if (Popup == null)
         {
-            OpenInExternalBrowser(e.Uri);
-            return;
-        }
-
-        var config = _configStore.Get();
-        var inst = config.Instances.FirstOrDefault(i => i.Id == instanceId);
-        if (inst == null)
-        {
-            OpenInExternalBrowser(e.Uri);
-            return;
-        }
-
-        // 設定不整合でResolveUrlが例外を投げてもイベントハンドラを落とさない。
-        string parentHost;
-        try
-        {
-            parentHost = ExtractHost(Recipes.ResolveUrl(inst));
-        }
-        catch (InvalidOperationException)
-        {
-            parentHost = "";
-        }
-        var theme = ThemePalette.Get(config.Settings.Theme);
-
-        _ = System.Windows.Application.Current?.Dispatcher.InvokeAsync(async () =>
-        {
-            try
+            if (PopupWindow.IsOpenableUri(e.Uri))
             {
-                await Popup.ShowAsync(instanceId, parentHost, e.Uri, _environment, _contentHost, theme);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[popup] failed: {ex.Message}");
+                e.Handled = true;
                 OpenInExternalBrowser(e.Uri);
             }
-        });
-    }
+            return;
+        }
 
-    private static string ExtractHost(string url)
-    {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var parsed))
-            return parsed.Host;
-        return "";
+        // 非同期で WebView2 を作る間、イベントを完了させないために deferral を取る(同期的に取得する必要がある)。
+        var deferral = e.GetDeferral();
+        var theme = ThemePalette.Get(_configStore.Get().Settings.Theme);
+        var owner = System.Windows.Application.Current?.MainWindow;
+        _ = Popup.HandleAsync(e, deferral, _environment, instanceId, theme, owner);
     }
 
     /// <summary>

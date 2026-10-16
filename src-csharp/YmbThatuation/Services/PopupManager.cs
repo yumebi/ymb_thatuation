@@ -1,250 +1,217 @@
+using System.Diagnostics;
+using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
 namespace YmbThatuation.Services;
 
 /// <summary>
-/// OAuth等の新規ウインドウ要求をアプリ内オーバーレイで完結させる。
-/// e.NewWindowへの割り当てはハングするため使用せず、独自にWebView2コントロールを
-/// 作成してContentHost上にオーバーレイ表示する。
-/// ナビゲーション先が親サービスのドメインに戻ったら(=OAuth完了)自動で閉じる。
+/// サービス内の window.open() / target="_blank" で開かれる新規ウインドウを、アプリ内の別ウインドウで表示する。
+///
+/// 親のサービスと「同じプロファイル」で WebView2 を作り、NewWindow に割り当てる。
+/// これにより、親のログイン状態(Cookie)が引き継がれ、window.opener・postMessage・window.close() が
+/// 通常のブラウザと同じように動く(「Googleでログイン」などの弾窓がそのまま完了する)。
+///
+/// 以前は、親とは別のプロファイルで作った WebView2 を、親と同じウインドウの上に重ねていた。
+/// - 別プロファイルは NewWindow に割り当てられない(ArgumentException)ため、window.opener が失われた。
+/// - WebView2(HWND)の上に重ねた WPF の要素は描画されないため、暗幕と閉じるボタンが見えなかった。
+/// - さらに、重ねる処理自体がキャストの誤りで必ず例外になり、実際には動いていなかった。
 /// </summary>
 public sealed class PopupManager
 {
-    private readonly List<PopupSession> _sessions = new();
+    private readonly Action<string?> _openExternal;
+    private readonly List<PopupWindow> _windows = new();
+
+    /// <param name="openExternal">ポップアップを作れなかったときに URL を開く処理(既定は既定ブラウザ)。</param>
+    public PopupManager(Action<string?>? openExternal = null)
+    {
+        _openExternal = openExternal ?? InstanceManager.OpenInExternalBrowser;
+    }
+
+    /// <summary>表示中のポップアップの数(テスト用)。</summary>
+    public int OpenCount => _windows.Count;
 
     /// <summary>
-    /// ポップアップを表示する。親サービスのドメインにOAuthのリダイレクト先が
-    /// 戻ったら自動で閉じる。
+    /// NewWindowRequested の中から呼ぶ。deferral はイベントハンドラ内で取得して渡す
+    /// (取得しないと、非同期で WebView2 を作る間にイベントが完了してしまう)。
+    /// 失敗した場合は、URL があれば外部ブラウザで開く。
     /// </summary>
-    public async Task ShowAsync(
-        string parentInstanceId,
-        string parentHost,
-        string uri,
+    /// <param name="profileName">親の WebView2 と同じ ProfileName。</param>
+    public async Task HandleAsync(
+        CoreWebView2NewWindowRequestedEventArgs e,
+        CoreWebView2Deferral deferral,
         CoreWebView2Environment environment,
-        System.Windows.Controls.Grid contentHost,
-        ThemeColors theme)
+        string profileName,
+        ThemeColors theme,
+        Window? owner)
     {
-        var session = new PopupSession
-        {
-            ParentInstanceId = parentInstanceId,
-            ParentHost = parentHost,
-        };
-
-        var overlay = BuildOverlay(session);
-        var panel = BuildPanel(session, theme);
-        overlay.Children.Add(panel);
-        contentHost.Children.Add(overlay);
-        session.Overlay = overlay;
-
-        var webview = new WebView2();
-        session.WebView = webview;
-        System.Windows.Controls.Grid.SetRow(panel, 0);
-        var webviewContainer = (System.Windows.Controls.StackPanel)panel.Children[0];
-        webviewContainer.Children.Add(webview);
-
+        PopupWindow? popup = null;
         try
         {
+            var size = PopupSizing.Resolve(
+                e.WindowFeatures.HasSize ? (double?)e.WindowFeatures.Width : null,
+                e.WindowFeatures.HasSize ? (double?)e.WindowFeatures.Height : null,
+                owner?.ActualWidth, owner?.ActualHeight);
+
+            popup = new PopupWindow(theme, owner, size.Width, size.Height);
+            popup.Show();   // WebView2 の初期化には HWND が必要
+
             var options = environment.CreateCoreWebView2ControllerOptions();
-            options.ProfileName = $"popup-{parentInstanceId}-{DateTime.UtcNow.Ticks}";
-            await webview.EnsureCoreWebView2Async(environment, options);
+            options.ProfileName = profileName;
+            await popup.WebView.EnsureCoreWebView2Async(environment, options);
 
-            webview.CoreWebView2.NavigationStarting += (_, e) => OnNavigationStarting(session, e);
-            webview.CoreWebView2.SourceChanged += (_, _) => OnSourceChanged(session, contentHost);
-            webview.CoreWebView2.ProcessFailed += (_, _) => Close(session, contentHost);
+            popup.Attach(_openExternal);
+            e.NewWindow = popup.WebView.CoreWebView2;
+            e.Handled = true;
 
-            webview.CoreWebView2.Navigate(uri);
-            _sessions.Add(session);
+            _windows.Add(popup);
+            var created = popup;
+            popup.Closed += (_, _) => _windows.Remove(created);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            Close(session, contentHost);
-        }
-    }
-
-    private void OnNavigationStarting(PopupSession session, CoreWebView2NavigationStartingEventArgs e)
-    {
-        if (string.IsNullOrEmpty(e.Uri)) return;
-        if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var parsed)) return;
-
-        if (IsSameDomain(parsed.Host, session.ParentHost))
-        {
-            e.Cancel = true;
-            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            Debug.WriteLine($"[popup] failed: {ex.GetType().Name}: {ex.Message}");
+            popup?.CloseQuietly();
+            if (PopupWindow.IsOpenableUri(e.Uri))
             {
-                if (session.Overlay?.Parent is System.Windows.Controls.Grid contentHost)
-                    Close(session, contentHost);
-            });
+                e.Handled = true;
+                _openExternal(e.Uri);
+            }
         }
-    }
-
-    private void OnSourceChanged(PopupSession session, System.Windows.Controls.Grid contentHost)
-    {
-        if (session.WebView?.CoreWebView2 == null) return;
-        var sourceStr = session.WebView.CoreWebView2.Source;
-        if (string.IsNullOrEmpty(sourceStr)) return;
-        if (!Uri.TryCreate(sourceStr, UriKind.Absolute, out var sourceUri)) return;
-
-        var host = sourceUri.Host;
-        if (string.IsNullOrEmpty(host)) return;
-
-        if (IsSameDomain(host, session.ParentHost))
+        finally
         {
-            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
-                Close(session, contentHost));
+            deferral.Complete();
         }
-    }
-
-    /// <summary>
-    /// 2つのホストが同一ドメインかどうかを判定する。
-    /// "app.slack.com" と "slack.com" を同一とみなす等、サブドメインの前方一致で判断する。
-    /// </summary>
-    private static bool IsSameDomain(string a, string b)
-    {
-        a = a.ToLowerInvariant().TrimEnd('.');
-        b = b.ToLowerInvariant().TrimEnd('.');
-        return a == b || a.EndsWith("." + b) || b.EndsWith("." + a);
-    }
-
-    private void Close(PopupSession session, System.Windows.Controls.Grid contentHost)
-    {
-        if (session.Closed) return;
-        session.Closed = true;
-
-        session.WebView?.Dispose();
-        if (session.Overlay != null)
-        {
-            contentHost.Children.Remove(session.Overlay);
-        }
-        _sessions.Remove(session);
     }
 
     public void DisposeAll()
     {
-        foreach (var session in _sessions)
+        foreach (var window in _windows.ToList())
         {
-            session.WebView?.Dispose();
+            window.CloseQuietly();
         }
-        _sessions.Clear();
+        _windows.Clear();
     }
+}
+
+/// <summary>ポップアップの大きさの決め方(純粋関数)。</summary>
+public static class PopupSizing
+{
+    public const double DefaultWidth = 520;
+    public const double DefaultHeight = 680;
+    public const double MinWidth = 320;
+    public const double MinHeight = 240;
 
     /// <summary>
-    /// 半透明暗幕を構築する。クリックでポップアップを閉じる。
+    /// ページが指定した大きさ(window.open の features)を使い、無ければ既定の大きさにする。
+    /// 本体ウインドウより大きくならないようにし、小さすぎる指定は最小値まで広げる。
     /// </summary>
-    private System.Windows.Controls.Grid BuildOverlay(PopupSession session)
+    public static (double Width, double Height) Resolve(
+        double? requestedWidth, double? requestedHeight, double? ownerWidth, double? ownerHeight)
     {
-        var overlay = new System.Windows.Controls.Grid
-        {
-            Background = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromArgb(128, 0, 0, 0)),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            VerticalAlignment = System.Windows.VerticalAlignment.Stretch,
-        };
+        var width = requestedWidth is > 0 ? requestedWidth.Value : DefaultWidth;
+        var height = requestedHeight is > 0 ? requestedHeight.Value : DefaultHeight;
 
-        overlay.MouseLeftButtonDown += (_, _) =>
-        {
-            if (overlay.Parent is System.Windows.Controls.Grid contentHost)
-                Close(session, contentHost);
-        };
+        var maxWidth = ownerWidth is > 0 ? Math.Max(MinWidth, ownerWidth.Value - 40) : double.MaxValue;
+        var maxHeight = ownerHeight is > 0 ? Math.Max(MinHeight, ownerHeight.Value - 40) : double.MaxValue;
 
-        return overlay;
+        return (Math.Clamp(width, MinWidth, maxWidth), Math.Clamp(height, MinHeight, maxHeight));
+    }
+}
+
+/// <summary>ポップアップを表示する、通常のトップレベルウインドウ(本体がオーナー)。</summary>
+public sealed class PopupWindow : Window
+{
+    public WebView2 WebView { get; } = new();
+
+    private bool _closed;
+
+    internal PopupWindow(ThemeColors theme, Window? owner, double width, double height)
+    {
+        Width = width;
+        Height = height;
+        MinWidth = PopupSizing.MinWidth;
+        MinHeight = PopupSizing.MinHeight;
+        Title = "YMB Thatuation";
+        Background = new System.Windows.Media.SolidColorBrush(TitleBarTheme.ParseColor(theme.Bar));
+        ShowInTaskbar = false;
+        Content = WebView;
+
+        if (owner is { IsVisible: true })
+        {
+            Owner = owner;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
+        else
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
+
+        SourceInitialized += (_, _) => TitleBarTheme.Apply(this, theme);
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            WebView.Dispose();
+        };
     }
 
-    /// <summary>
-    /// タイトルバー(ドメイン + 閉じるボタン) + WebView2コンテナを構築する。
-    /// </summary>
-    private System.Windows.Controls.Grid BuildPanel(PopupSession session, ThemeColors theme)
+    /// <summary>WebView2 の初期化後に、タイトルの表示・自動クローズ・遷移の制限を設定する。</summary>
+    internal void Attach(Action<string?> openExternal)
     {
-        var barBg = ToBrush(theme.Bar);
-        var btnHoverBg = ToBrush(theme.ButtonHover);
-        var fg = ToBrush(theme.Text);
+        var core = WebView.CoreWebView2;
 
-        var panel = new System.Windows.Controls.Grid
+        // ポップアップの中でさらに新しいウインドウを開く連鎖は作らない。外部ブラウザへ。
+        core.NewWindowRequested += (_, e) =>
         {
-            Margin = new System.Windows.Thickness(40, 30, 40, 30),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            VerticalAlignment = System.Windows.VerticalAlignment.Stretch,
+            e.Handled = true;
+            if (IsOpenableUri(e.Uri)) openExternal(e.Uri);
         };
-        panel.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
-            { Height = System.Windows.GridLength.Auto });
-        panel.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
-            { Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
 
-        var titleBar = new System.Windows.Controls.Grid
+        // ページ自身の window.close()(OAuth の完了後など)で閉じる。
+        core.WindowCloseRequested += (_, _) => CloseQuietly();
+
+        // http/https 以外(file:// など)へは遷移させない。
+        core.NavigationStarting += (_, e) =>
         {
-            Background = barBg,
-            Height = 32,
+            if (!IsAllowedNavigation(e.Uri)) e.Cancel = true;
         };
-        titleBar.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
-            { Width = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
-        titleBar.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
-            { Width = System.Windows.GridLength.Auto });
 
-        var domainText = new System.Windows.Controls.TextBlock
-        {
-            Text = ExtractDomain(session.ParentHost),
-            Foreground = fg,
-            FontSize = 12,
-            VerticalAlignment = System.Windows.VerticalAlignment.Center,
-            Margin = new System.Windows.Thickness(10, 0, 0, 0),
-            Opacity = 0.7,
-        };
-        System.Windows.Controls.Grid.SetColumn(domainText, 0);
-        titleBar.Children.Add(domainText);
-
-        var closeBtn = new System.Windows.Controls.Button
-        {
-            Content = "\u2715",
-            Foreground = fg,
-            Background = System.Windows.Media.Brushes.Transparent,
-            BorderThickness = new System.Windows.Thickness(0),
-            Width = 32,
-            Height = 32,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            FontSize = 14,
-        };
-        closeBtn.Template = InstanceManager.FlatButtonTemplate;
-        closeBtn.MouseEnter += (_, _) => closeBtn.Background = btnHoverBg;
-        closeBtn.MouseLeave += (_, _) => closeBtn.Background = System.Windows.Media.Brushes.Transparent;
-        closeBtn.Click += (_, _) =>
-        {
-            if (session.Overlay?.Parent is System.Windows.Controls.Grid contentHost)
-                Close(session, contentHost);
-        };
-        System.Windows.Controls.Grid.SetColumn(closeBtn, 1);
-        titleBar.Children.Add(closeBtn);
-
-        System.Windows.Controls.Grid.SetRow(titleBar, 0);
-        panel.Children.Add(titleBar);
-
-        var webviewContainer = new System.Windows.Controls.StackPanel
-        {
-            Orientation = System.Windows.Controls.Orientation.Vertical,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            VerticalAlignment = System.Windows.VerticalAlignment.Stretch,
-        };
-        System.Windows.Controls.Grid.SetRow(webviewContainer, 1);
-        panel.Children.Add(webviewContainer);
-
-        return panel;
+        core.DocumentTitleChanged += (_, _) => UpdateTitle();
+        core.SourceChanged += (_, _) => UpdateTitle();
+        core.ProcessFailed += (_, _) => CloseQuietly();
     }
 
-    private static string ExtractDomain(string host)
+    private void UpdateTitle()
     {
-        var parts = host.Split('.');
-        if (parts.Length <= 2) return host;
-        return string.Join('.', parts[^2..]);
+        if (_closed || WebView.CoreWebView2 is not { } core) return;
+
+        var host = Uri.TryCreate(core.Source, UriKind.Absolute, out var uri) ? uri.Host : "";
+        var title = core.DocumentTitle;
+        // どのサイトのウインドウか分かるよう、ホスト名を必ず出す(なりすまし対策)。
+        Title = string.IsNullOrEmpty(host) ? "YMB Thatuation"
+            : string.IsNullOrWhiteSpace(title) || title == host ? host
+            : $"{host} - {title}";
     }
 
-    private static System.Windows.Media.Brush ToBrush(string hex) =>
-        new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex));
-
-    private sealed class PopupSession
+    public void CloseQuietly()
     {
-        public string ParentInstanceId { get; init; } = "";
-        public string ParentHost { get; init; } = "";
-        public WebView2? WebView { get; set; }
-        public System.Windows.Controls.Grid? Overlay { get; set; }
-        public bool Closed { get; set; }
+        if (_closed) return;
+        try
+        {
+            Close();
+        }
+        catch (InvalidOperationException)
+        {
+            // 閉じている途中など。無視する。
+        }
     }
+
+    /// <summary>外部ブラウザで開いてよい URL か(http/https のみ)。</summary>
+    public static bool IsOpenableUri(string? uri) =>
+        Uri.TryCreate(uri, UriKind.Absolute, out var parsed)
+        && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
+
+    /// <summary>ポップアップ内で遷移してよい URL か(http/https と about:blank)。</summary>
+    public static bool IsAllowedNavigation(string? uri) =>
+        IsOpenableUri(uri) || string.Equals(uri, "about:blank", StringComparison.OrdinalIgnoreCase);
 }
