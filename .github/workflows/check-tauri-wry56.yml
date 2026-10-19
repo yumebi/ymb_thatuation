@@ -13,7 +13,7 @@ jobs:
   check:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # 「wry が 0.56 以上に依存しているか」では不十分だった。wry 側に with_profile_name があっても、
       # tauri-runtime-wry がそれを呼ばなければ Tauri アプリからは使えない(Tauri の API には出ない)。
