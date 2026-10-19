@@ -1,7 +1,13 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
+// WinForms(System.Drawing)も有効なプロジェクトのため、WPF 側の型を明示する
+using Brushes = System.Windows.Media.Brushes;
+using Color = System.Windows.Media.Color;
+using FontFamily = System.Windows.Media.FontFamily;
 
 namespace YmbThatuation.Services;
 
@@ -119,15 +125,72 @@ public static class PopupSizing
     }
 }
 
+public enum PopupAddressKind
+{
+    /// <summary>https。</summary>
+    Secure,
+    /// <summary>http(暗号化されていない)。</summary>
+    Insecure,
+    /// <summary>about:blank など、上記以外。</summary>
+    Other,
+}
+
+/// <summary>ポップアップのアドレス行に出す内容(純粋関数)。</summary>
+public static class PopupAddress
+{
+    public sealed record Info(string Text, PopupAddressKind Kind);
+
+    /// <summary>
+    /// 表示する URL と、接続の種類を決める。
+    /// 国際化ドメイン名は、見た目が似た別のサイトに見せかけられないよう、Punycode のまま(AbsoluteUri)出す。
+    /// 空・解釈できない文字列は、そのまま(空は about:blank 扱い)出す。
+    /// </summary>
+    public static Info Describe(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri)) return new Info("about:blank", PopupAddressKind.Other);
+
+        if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed)) return new Info(uri, PopupAddressKind.Other);
+
+        var kind = parsed.Scheme == Uri.UriSchemeHttps ? PopupAddressKind.Secure
+            : parsed.Scheme == Uri.UriSchemeHttp ? PopupAddressKind.Insecure
+            : PopupAddressKind.Other;
+        return new Info(WithPunycodeHost(parsed), kind);
+    }
+
+    /// <summary>
+    /// AbsoluteUri は国際化ドメイン名を元の文字のまま返す。ホスト部分だけ Punycode(IdnHost)に置き換える。
+    /// 例: キリル文字の "а" を使った偽の apple.com は、xn-- で始まる形で見える。
+    /// </summary>
+    private static string WithPunycodeHost(Uri parsed)
+    {
+        var absolute = parsed.AbsoluteUri;
+        if (string.IsNullOrEmpty(parsed.Host) || parsed.Host == parsed.IdnHost) return absolute;
+
+        var authority = parsed.GetLeftPart(UriPartial.Authority);
+        if (!absolute.StartsWith(authority, StringComparison.OrdinalIgnoreCase)) return absolute;
+
+        var hostIndex = authority.IndexOf(parsed.Host, StringComparison.OrdinalIgnoreCase);
+        if (hostIndex < 0) return absolute;
+
+        var punyAuthority = authority.Substring(0, hostIndex) + parsed.IdnHost
+            + authority.Substring(hostIndex + parsed.Host.Length);
+        return punyAuthority + absolute.Substring(authority.Length);
+    }
+}
+
 /// <summary>ポップアップを表示する、通常のトップレベルウインドウ(本体がオーナー)。</summary>
 public sealed class PopupWindow : Window
 {
     public WebView2 WebView { get; } = new();
 
+    private readonly ThemeColors _theme;
+    private readonly TextBlock _lockIcon = new();
+    private readonly System.Windows.Controls.TextBox _address = new();
     private bool _closed;
 
     internal PopupWindow(ThemeColors theme, Window? owner, double width, double height)
     {
+        _theme = theme;
         Width = width;
         Height = height;
         MinWidth = PopupSizing.MinWidth;
@@ -135,7 +198,7 @@ public sealed class PopupWindow : Window
         Title = "YMB Thatuation";
         Background = new System.Windows.Media.SolidColorBrush(TitleBarTheme.ParseColor(theme.Bar));
         ShowInTaskbar = false;
-        Content = WebView;
+        Content = BuildLayout(theme);
 
         if (owner is { IsVisible: true })
         {
@@ -153,6 +216,61 @@ public sealed class PopupWindow : Window
             _closed = true;
             WebView.Dispose();
         };
+    }
+
+    /// <summary>
+    /// 上段に読み取り専用のアドレス行、下段に WebView2 を置く。
+    /// WebView2(HWND)の上には重ねず、行を分けて並べる(重ねた WPF 要素は描画されないため)。
+    /// どのサイトのウインドウか、URL 全体を見て確かめられるようにする(OAuth の弾窓でのなりすまし対策)。
+    /// </summary>
+    private Grid BuildLayout(ThemeColors theme)
+    {
+        var text = new SolidColorBrush(TitleBarTheme.ParseColor(theme.Text));
+        var field = new SolidColorBrush(TitleBarTheme.ParseColor(theme.Button));
+        var border = new SolidColorBrush(TitleBarTheme.ParseColor(theme.Border));
+
+        _lockIcon.FontFamily = new FontFamily("Segoe MDL2 Assets");
+        _lockIcon.FontSize = 13;
+        _lockIcon.VerticalAlignment = VerticalAlignment.Center;
+        _lockIcon.Margin = new Thickness(0, 0, 8, 0);
+        _lockIcon.Foreground = text;
+
+        _address.IsReadOnly = true;
+        _address.BorderThickness = new Thickness(0);
+        _address.Background = Brushes.Transparent;
+        _address.Foreground = text;
+        _address.FontSize = 12;
+        _address.VerticalContentAlignment = VerticalAlignment.Center;
+        _address.Padding = new Thickness(0, 2, 0, 2);
+        _address.Text = "";
+
+        var bar = new Grid();
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(_lockIcon, 0);
+        Grid.SetColumn(_address, 1);
+        bar.Children.Add(_lockIcon);
+        bar.Children.Add(_address);
+
+        var addressRow = new Border
+        {
+            Background = field,
+            BorderBrush = border,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(10, 4, 10, 4),
+            Child = bar,
+        };
+
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Grid.SetRow(addressRow, 0);
+        Grid.SetRow(WebView, 1);
+        root.Children.Add(addressRow);
+        root.Children.Add(WebView);
+
+        UpdateAddress();
+        return root;
     }
 
     /// <summary>WebView2 の初期化後に、タイトルの表示・自動クローズ・遷移の制限を設定する。</summary>
@@ -177,7 +295,11 @@ public sealed class PopupWindow : Window
         };
 
         core.DocumentTitleChanged += (_, _) => UpdateTitle();
-        core.SourceChanged += (_, _) => UpdateTitle();
+        core.SourceChanged += (_, _) =>
+        {
+            UpdateTitle();
+            UpdateAddress();
+        };
         core.ProcessFailed += (_, _) => CloseQuietly();
     }
 
@@ -191,6 +313,31 @@ public sealed class PopupWindow : Window
         Title = string.IsNullOrEmpty(host) ? "YMB Thatuation"
             : string.IsNullOrWhiteSpace(title) || title == host ? host
             : $"{host} - {title}";
+    }
+
+    private void UpdateAddress()
+    {
+        if (_closed) return;
+
+        var source = WebView.CoreWebView2?.Source;
+        var info = PopupAddress.Describe(source);
+        _address.Text = info.Text;
+        _address.ToolTip = info.Text;
+        _lockIcon.Text = info.Kind switch
+        {
+            PopupAddressKind.Secure => "\uE72E",     // 鍵
+            PopupAddressKind.Insecure => "\uE7BA",   // 警告
+            _ => "\uE774",                           // 地球
+        };
+        _lockIcon.Foreground = info.Kind == PopupAddressKind.Insecure
+            ? new SolidColorBrush(Color.FromRgb(0xE6, 0x9A, 0x00))
+            : new SolidColorBrush(TitleBarTheme.ParseColor(_theme.Text));
+        _lockIcon.ToolTip = info.Kind switch
+        {
+            PopupAddressKind.Secure => "暗号化された接続(https)",
+            PopupAddressKind.Insecure => "暗号化されていない接続(http)。パスワードなどを入力しないでください",
+            _ => null,
+        };
     }
 
     public void CloseQuietly()

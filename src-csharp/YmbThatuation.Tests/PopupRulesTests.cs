@@ -77,4 +77,49 @@ public class PopupRulesTests
     {
         Assert.Equal(expected, PopupWindow.IsAllowedNavigation(uri));
     }
+
+    [Theory]
+    [InlineData("https://accounts.google.com/o/oauth2/auth?x=1", PopupAddressKind.Secure)]
+    [InlineData("http://example.com/", PopupAddressKind.Insecure)]
+    [InlineData("about:blank", PopupAddressKind.Other)]
+    [InlineData("file:///C:/secret.txt", PopupAddressKind.Other)]
+    public void Address_KindFollowsScheme(string uri, PopupAddressKind expected)
+    {
+        Assert.Equal(expected, PopupAddress.Describe(uri).Kind);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Address_EmptyIsAboutBlank(string? uri)
+    {
+        var info = PopupAddress.Describe(uri);
+        Assert.Equal("about:blank", info.Text);
+        Assert.Equal(PopupAddressKind.Other, info.Kind);
+    }
+
+    [Fact]
+    public void Address_ShowsFullUrlIncludingQuery()
+    {
+        var info = PopupAddress.Describe("https://slack.com/oauth/v2/authorize?client_id=1&scope=a%20b");
+        Assert.Equal("https://slack.com/oauth/v2/authorize?client_id=1&scope=a%20b", info.Text);
+    }
+
+    [Fact]
+    public void Address_InternationalHostIsShownAsPunycode()
+    {
+        // ラテン文字に見える別の文字(キリル文字の "а")を使った偽ドメインを、見た目どおりに表示しない。
+        var info = PopupAddress.Describe("https://\u0430pple.com/login");
+        Assert.StartsWith("https://xn--", info.Text);
+        Assert.DoesNotContain("\u0430", info.Text);
+    }
+
+    [Fact]
+    public void Address_UnparsableTextIsShownAsIs()
+    {
+        var info = PopupAddress.Describe("not a url");
+        Assert.Equal("not a url", info.Text);
+        Assert.Equal(PopupAddressKind.Other, info.Kind);
+    }
 }
