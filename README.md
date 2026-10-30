@@ -59,6 +59,7 @@ dotnet run
   IPCは `window.chrome.webview.hostObjects.ymb` 経由のホストオブジェクト呼び出し。
 - **WMI連携**: `System.Management` でプロセスメモリ使用量を集計。
 - **テスト**: xUnit(`YmbThatuation.Tests`)。
+- **脆弱性検査**: OSV-Scanner(NuGet の依存を毎週検査)。
 - **インストーラー**: Inno Setup(`installer/setup.iss`)。
 - **CI/CD**: GitHub Actions(`.github/workflows/release.yml`)、masterへのpushで
   publish→インストーラービルド→GitHub Release公開まで自動化。
@@ -74,6 +75,13 @@ Tauri 2 + wry の `with_profile_name`(WebView2のProfileName指定、マルチ�
 プロファイル分離に必須)が現状devブランチのみで未リリースのため開発を一時保留している。
 これが正式リリースされ、マルチインスタンス関連機能を実装できるようになった時点で
 開発を再開する予定。
+
+## セキュリティと依存関係の更新
+
+- **脆弱性の検査**: 依存ライブラリの既知の脆弱性を、[OSV-Scanner](https://google.github.io/osv-scanner/) で、push・プルリクエスト・毎週月曜(10:00 JST)に自動で検査します(`.github/workflows/osv-scanner.yml`)。見つかるとこのワークフローが失敗します(リリースのワークフローとは独立で、リリースは止めません)。
+- **更新の提案**: [Dependabot](https://docs.github.com/ja/code-security/dependabot) が、毎週月曜に依存の更新をプルリクエストで提案します(`.github/dependabot.yml`)。公開から 14 日未満のバージョンは対象にしません(供給網攻撃への備え)。
+- **緊急の修正**: 実際に影響のある脆弱性の修正など、緊急性が高いものは、14 日未満でもすぐに取り込みます。
+- **失敗が残る場合**: 修正版がない、または上流(WebView2 や NuGet のパッケージ)の更新待ちの検出は、検査が失敗のまま残ることがあります。
 
 ## ダウンロード
 
