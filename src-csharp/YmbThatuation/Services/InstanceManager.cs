@@ -20,26 +20,65 @@ public class InstanceManager
     private const string SettingsKey = "__settings";
 
     /// <summary>
-    /// audio/video要素の再生状態を監視し、変化時にwindow.chrome.webview.postMessageで
-    /// ホストへ通知する。再生中のサービスを自動スリープの対象外にするために使う。
+    /// 音声の再生状態を監視し、変化時にwindow.chrome.webview.postMessageでホストへ通知する。
+    /// 再生中のサービスを、自動スリープとメモリ抑圧(MemoryUsageTargetLevel.Low)の対象外にするために使う。
+    /// 見ているもの:
+    /// - DOM上のaudio/video要素
+    /// - DOMに挿入されない new Audio().play()(通知音など。document まで play イベントが届かない)
+    /// - WebRTCの接続中(SlackのHuddle、Meet、Teams等の通話。音声要素が無い/見つからないことがある)
     /// </summary>
     private const string MediaPlaybackScript = @"(function(){
   if (window.__ymbMediaScanStarted) return;
   window.__ymbMediaScanStarted = true;
+  var last = null;
+  var detached = new Set();
+  var peers = new Set();
+  function isPlayingEl(el) { return !el.paused && !el.ended && el.currentTime > 0; }
   function isAnyPlaying() {
     var els = document.querySelectorAll('audio, video');
     for (var i = 0; i < els.length; i++) {
-      if (!els[i].paused && !els[i].ended && els[i].currentTime > 0) return true;
+      if (isPlayingEl(els[i])) return true;
     }
-    return false;
+    var found = false;
+    detached.forEach(function (el) {
+      if (isPlayingEl(el)) found = true;
+      else if (el.ended || el.paused) detached.delete(el);
+    });
+    if (found) return true;
+    peers.forEach(function (pc) {
+      if (pc.connectionState === 'closed') peers.delete(pc);
+      else if (pc.connectionState === 'connected') found = true;
+    });
+    return found;
   }
-  var last = null;
   function report() {
     var playing = isAnyPlaying();
     if (playing === last) return;
     last = playing;
     try { window.chrome.webview.postMessage({ type: 'media', playing: playing }); } catch (e) {}
   }
+  try {
+    var origPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      try { detached.add(this); this.addEventListener('ended', report); this.addEventListener('pause', report); } catch (e) {}
+      var result = origPlay.apply(this, arguments);
+      setTimeout(report, 0);
+      return result;
+    };
+  } catch (e) {}
+  ['RTCPeerConnection', 'webkitRTCPeerConnection'].forEach(function (name) {
+    var Orig = window[name];
+    if (!Orig) return;
+    var Wrapped = function () {
+      var pc = Reflect.construct(Orig, arguments, new.target || Wrapped);
+      peers.add(pc);
+      pc.addEventListener('connectionstatechange', report);
+      return pc;
+    };
+    Wrapped.prototype = Orig.prototype;
+    Object.setPrototypeOf(Wrapped, Orig);
+    window[name] = Wrapped;
+  });
   document.addEventListener('play', report, true);
   document.addEventListener('pause', report, true);
   document.addEventListener('ended', report, true);
@@ -963,7 +1002,8 @@ public class InstanceManager
         if (webview.CoreWebView2 == null) return;
         try
         {
-            var playing = _mediaPlaying.GetValueOrDefault(id);
+            // ポップアップ(Slack Huddle等)が開いている間は、親ページが非表示でも抑圧しない。
+            var playing = _mediaPlaying.GetValueOrDefault(id) || Popup?.HasOpenFor(id) == true;
             webview.CoreWebView2.MemoryUsageTargetLevel = visible || playing
                 ? CoreWebView2MemoryUsageTargetLevel.Normal
                 : CoreWebView2MemoryUsageTargetLevel.Low;
@@ -1013,6 +1053,8 @@ public class InstanceManager
         {
             System.Windows.Application.Current?.Dispatcher.Invoke(() =>
             {
+                // Huddle等のポップアップが開いている間にスリープすると、親ごとポップアップも閉じてしまう。
+                if (Popup?.HasOpenFor(id) == true) return;
                 System.Diagnostics.Debug.WriteLine($"[auto-sleep] {id}");
                 _ = SleepAsync(id);
                 _hiddenSince.Remove(id);

@@ -27,6 +27,14 @@ public sealed class PopupManager
 {
     private readonly Action<string?> _openExternal;
     private readonly List<PopupWindow> _windows = new();
+    private readonly Dictionary<PopupWindow, string> _profiles = new();
+
+    /// <summary>
+    /// そのプロファイル(=サービス)から開いたポップアップが表示中か。
+    /// SlackのHuddle等、ポップアップが親ページ(opener)に依存して通話・音声を保っている間は、
+    /// 親が非表示でもメモリ抑圧や自動スリープの対象にしないために使う。
+    /// </summary>
+    public bool HasOpenFor(string profileName) => _profiles.ContainsValue(profileName);
 
     /// <param name="openExternal">ポップアップを作れなかったときに URL を開く処理(既定は既定ブラウザ)。</param>
     public PopupManager(Action<string?>? openExternal = null)
@@ -72,7 +80,12 @@ public sealed class PopupManager
 
             _windows.Add(popup);
             var created = popup;
-            popup.Closed += (_, _) => _windows.Remove(created);
+            _profiles[created] = profileName;
+            popup.Closed += (_, _) =>
+            {
+                _windows.Remove(created);
+                _profiles.Remove(created);
+            };
         }
         catch (Exception ex)
         {
@@ -97,6 +110,7 @@ public sealed class PopupManager
             window.CloseQuietly();
         }
         _windows.Clear();
+        _profiles.Clear();
     }
 }
 
