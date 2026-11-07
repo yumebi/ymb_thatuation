@@ -117,6 +117,8 @@
   "settings.drag_handle": "Drag to reorder",
   "settings.move_up": "Move {name} up",
   "settings.move_down": "Move {name} down",
+  "settings.add_service_btn": "+ Add service",
+  "settings.cancel_add": "Cancel",
 
   "urlbar.back": "Back",
   "urlbar.forward": "Forward",

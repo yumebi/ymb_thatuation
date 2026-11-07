@@ -146,91 +146,7 @@
   </h2>
   <div id="list" class="svc-list"></div>
 
-  <div id="form-slot"><div id="form-wrap">
-  <h2 id="form-title">サービスを追加</h2>
-  <form id="add" class="section-card">
-    <div class="row">
-      <select id="recipe">
-        <option value="gmail">Gmail</option>
-        <option value="googlecalendar">Google Calendar</option>
-        <option value="googlechat">Google Chat</option>
-        <option value="chatwork">Chatwork</option>
-        <option value="slack">Slack</option>
-        <option value="teams">Microsoft Teams</option>
-        <option value="messenger">Messenger (Facebook)</option>
-        <option value="discord">Discord</option>
-        <option value="notion">Notion</option>
-        <option value="youtube">YouTube</option>
-        <option value="x">X (Twitter)</option>
-        <option value="deckblue">deck.blue (Bluesky)</option>
-        <option value="misskey">Misskey (misskey.io)</option>
-        <option value="whatsapp">WhatsApp</option>
-        <option value="telegram">Telegram</option>
-        <option value="linkedin">LinkedIn</option>
-        <option value="instagram">Instagram</option>
-        <option value="reddit">Reddit</option>
-        <option value="trello">Trello</option>
-        <option value="github">GitHub</option>
-        <option value="twitch">Twitch</option>
-        <option value="zoom">Zoom</option>
-        <option value="googledrive">Google Drive</option>
-        <option value="googlekeep">Google Keep</option>
-        <option value="threads">Threads</option>
-        <option value="linear">Linear</option>
-        <option value="generic" data-i18n="settings.recipe_other">その他 (URL指定)</option>
-      </select>
-      <input id="name" data-i18n-placeholder="settings.name_placeholder" placeholder="表示名 (例: Gmail 仕事)" required style="flex:1" />
-      <input id="color" type="color" value="#5b8def" data-i18n-title="settings.color_title" title="識別カラー" style="width:44px;height:32px;padding:2px" />
-    </div>
-    <div class="row" id="url-row" style="display:none">
-      <input id="url" placeholder="https://..." style="flex:1" />
-    </div>
-    <div class="row" id="cw-token-row" style="display:none;flex-direction:column;align-items:flex-start;gap:4px">
-      <input id="cw-token" data-i18n-placeholder="settings.chatwork_token_placeholder" placeholder="Chatwork APIトークン (スリープ中の未読取得用・任意)" style="flex:1" />
-      <label id="cw-clear-row" style="display:none">
-        <input type="checkbox" id="cw-clear" />
-        <span data-i18n="settings.chatwork_token_clear">設定済みのトークンを削除する</span>
-      </label>
-    </div>
-    <div class="row">
-      <label><input type="checkbox" id="keep-awake" /><span data-i18n="settings.keep_awake">スリープさせない</span></label>
-    </div>
-    <div class="row">
-      <label><input type="checkbox" id="notify-muted" /><span data-i18n="settings.notify_muted">このサービスは通知しない</span></label>
-    </div>
-    <div class="row">
-      <label><input type="checkbox" id="wake-on-click" /><span data-i18n="settings.wake_on_click">スリープ中にアイコンを押したら、すぐスリープを解除する</span></label>
-    </div>
-    <div class="row">
-      <label><span data-i18n="settings.chrome_ua_label">ブラウザのUA偽装</span>
-        <select id="chrome-ua">
-          <option value="" data-i18n="settings.chrome_ua_default">既定(サービスに合わせる)</option>
-          <option value="true" data-i18n="settings.chrome_ua_true">Chromeとして偽装する</option>
-          <option value="false" data-i18n="settings.chrome_ua_false">偽装しない(WebView2既定)</option>
-        </select>
-      </label>
-    </div>
-    <div class="row">
-      <label><input type="checkbox" id="force-renavigate" /><span data-i18n="settings.force_renavigate">読み込み画面が真っ白なまま固まる場合に再読み込みを試行する</span></label>
-    </div>
-    <div class="row" style="flex-direction:column;align-items:flex-start;gap:4px">
-      <span data-i18n="settings.instance_extensions_label" style="color:#aeb0b8;font-size:13px">このサービスで有効にする拡張機能</span>
-      <div id="instance-ext-list" style="display:flex;flex-direction:column;gap:4px"></div>
-    </div>
-    <div class="row">
-      <img id="icon-preview" alt="" style="width:28px;height:28px;object-fit:contain;border-radius:6px;background:#1e1f24" />
-      <label class="ghost" style="cursor:pointer">
-        <span data-i18n="settings.icon_select">アイコン画像を選択</span>
-        <input id="icon-file" type="file" accept="image/*" style="display:none" />
-      </label>
-      <button type="button" class="ghost" id="icon-clear" data-i18n="settings.icon_reset">アイコンをリセット</button>
-    </div>
-    <div class="row">
-      <button type="submit" id="submit-btn">追加</button>
-      <button type="button" class="ghost" id="cancel-edit" data-i18n="settings.cancel_edit" style="display:none">編集をやめる</button>
-    </div>
-  </form>
-  </div></div>
+  <div class="row"><button type="button" id="open-add" data-i18n="settings.add_service_btn">＋ サービスを追加</button></div>
   </div>
 
   <div class="tab-panel" id="tab-general">
@@ -378,7 +294,93 @@
   <p id="msg" role="status"></p>
 </main>
 <dialog id="edit-dialog" aria-labelledby="form-title">
-  <div id="dialog-body"></div>
+  <div id="dialog-body">
+  <div id="form-wrap">
+  <h2 id="form-title">サービスを追加</h2>
+  <form id="add" class="section-card">
+    <div class="row">
+      <select id="recipe">
+        <option value="gmail">Gmail</option>
+        <option value="googlecalendar">Google Calendar</option>
+        <option value="googlechat">Google Chat</option>
+        <option value="chatwork">Chatwork</option>
+        <option value="slack">Slack</option>
+        <option value="teams">Microsoft Teams</option>
+        <option value="messenger">Messenger (Facebook)</option>
+        <option value="discord">Discord</option>
+        <option value="notion">Notion</option>
+        <option value="youtube">YouTube</option>
+        <option value="x">X (Twitter)</option>
+        <option value="deckblue">deck.blue (Bluesky)</option>
+        <option value="misskey">Misskey (misskey.io)</option>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="telegram">Telegram</option>
+        <option value="linkedin">LinkedIn</option>
+        <option value="instagram">Instagram</option>
+        <option value="reddit">Reddit</option>
+        <option value="trello">Trello</option>
+        <option value="github">GitHub</option>
+        <option value="twitch">Twitch</option>
+        <option value="zoom">Zoom</option>
+        <option value="googledrive">Google Drive</option>
+        <option value="googlekeep">Google Keep</option>
+        <option value="threads">Threads</option>
+        <option value="linear">Linear</option>
+        <option value="generic" data-i18n="settings.recipe_other">その他 (URL指定)</option>
+      </select>
+      <input id="name" data-i18n-placeholder="settings.name_placeholder" placeholder="表示名 (例: Gmail 仕事)" required style="flex:1" />
+      <input id="color" type="color" value="#5b8def" data-i18n-title="settings.color_title" title="識別カラー" style="width:44px;height:32px;padding:2px" />
+    </div>
+    <div class="row" id="url-row" style="display:none">
+      <input id="url" placeholder="https://..." style="flex:1" />
+    </div>
+    <div class="row" id="cw-token-row" style="display:none;flex-direction:column;align-items:flex-start;gap:4px">
+      <input id="cw-token" data-i18n-placeholder="settings.chatwork_token_placeholder" placeholder="Chatwork APIトークン (スリープ中の未読取得用・任意)" style="flex:1" />
+      <label id="cw-clear-row" style="display:none">
+        <input type="checkbox" id="cw-clear" />
+        <span data-i18n="settings.chatwork_token_clear">設定済みのトークンを削除する</span>
+      </label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="keep-awake" /><span data-i18n="settings.keep_awake">スリープさせない</span></label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="notify-muted" /><span data-i18n="settings.notify_muted">このサービスは通知しない</span></label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="wake-on-click" /><span data-i18n="settings.wake_on_click">スリープ中にアイコンを押したら、すぐスリープを解除する</span></label>
+    </div>
+    <div class="row">
+      <label><span data-i18n="settings.chrome_ua_label">ブラウザのUA偽装</span>
+        <select id="chrome-ua">
+          <option value="" data-i18n="settings.chrome_ua_default">既定(サービスに合わせる)</option>
+          <option value="true" data-i18n="settings.chrome_ua_true">Chromeとして偽装する</option>
+          <option value="false" data-i18n="settings.chrome_ua_false">偽装しない(WebView2既定)</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="force-renavigate" /><span data-i18n="settings.force_renavigate">読み込み画面が真っ白なまま固まる場合に再読み込みを試行する</span></label>
+    </div>
+    <div class="row" style="flex-direction:column;align-items:flex-start;gap:4px">
+      <span data-i18n="settings.instance_extensions_label" style="color:#aeb0b8;font-size:13px">このサービスで有効にする拡張機能</span>
+      <div id="instance-ext-list" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <div class="row">
+      <img id="icon-preview" alt="" style="width:28px;height:28px;object-fit:contain;border-radius:6px;background:#1e1f24" />
+      <label class="ghost" style="cursor:pointer">
+        <span data-i18n="settings.icon_select">アイコン画像を選択</span>
+        <input id="icon-file" type="file" accept="image/*" style="display:none" />
+      </label>
+      <button type="button" class="ghost" id="icon-clear" data-i18n="settings.icon_reset">アイコンをリセット</button>
+    </div>
+    <div class="row">
+      <button type="submit" id="submit-btn">追加</button>
+      <button type="button" class="ghost" id="cancel-edit">キャンセル</button>
+    </div>
+  </form>
+  </div>
+</div>
   <p id="dlg-msg" role="status"></p>
 </dialog>
 <script src="theme.js"></script>
@@ -429,24 +431,23 @@
       ? t("settings.edit_service_title", { name: editingName })
       : t("settings.add_service_title");
     $("submit-btn").textContent = editingId ? t("settings.update") : t("settings.add");
+    $("cancel-edit").textContent = editingId ? t("settings.cancel_edit") : t("settings.cancel_add");
   }
   document.addEventListener("i18n-ready", syncFormTexts);
 
   // 編集フォームは、通常は一覧の下(置き場)に置き、編集するときはダイアログに移す
   function openFormDialog() {
-    $("dialog-body").appendChild($("form-wrap"));
     $("dlg-msg").textContent = "";
     if (!dlg.open) dlg.showModal();
     $("name").focus();
   }
   function closeFormDialog() {
     if (dlg.open) dlg.close();
-    $("form-slot").appendChild($("form-wrap"));
   }
-  // Esc などで閉じられたときも、編集をやめた扱いにして、フォームを元の場所に戻す
+  // Esc などで閉じられたときも、編集(追加)をやめた扱いにして、フォームを初期の状態に戻す
   dlg.addEventListener("close", () => {
     if (editingId) endEdit();
-    else $("form-slot").appendChild($("form-wrap"));
+    else resetForm();
   });
 
   // 既定のWebコンテキストメニューを出さない
@@ -550,11 +551,11 @@
     instanceExtSelection = inst.enabled_extensions || [];
     renderInstanceExtChecklist();
     syncFormTexts();
-    $("cancel-edit").style.display = "";
     openFormDialog();
   }
 
-  function endEdit() {
+  // フォームを「追加」の状態に戻す(ダイアログは閉じない)
+  function resetForm() {
     editingId = null;
     editingName = "";
     $("recipe").disabled = false;
@@ -575,7 +576,10 @@
     instanceExtSelection = [];
     renderInstanceExtChecklist();
     syncFormTexts();
-    $("cancel-edit").style.display = "none";
+  }
+
+  function endEdit() {
+    resetForm();
     closeFormDialog();
   }
 
@@ -831,12 +835,8 @@
             enabledExtensions: instanceExtSelection,
           });
         }
-        $("name").value = "";
-        customIcon = null;
-        $("icon-file").value = "";
-        updateIconPreview({});
-        instanceExtSelection = [];
-        renderInstanceExtChecklist();
+        resetForm();
+        closeFormDialog();
         notify(t("settings.added"));
       }
     } catch (e2) {
@@ -846,6 +846,12 @@
   });
 
   $("cancel-edit").addEventListener("click", endEdit);
+
+  // 「サービスを追加」は、常時表示ではなく、ボタンで開くダイアログにする
+  $("open-add").addEventListener("click", () => {
+    resetForm();
+    openFormDialog();
+  });
 
   async function renderExtensions() {
     const exts = await invoke("get_extensions");

@@ -117,6 +117,8 @@
   "settings.drag_handle": "ドラッグして並べ替え",
   "settings.move_up": "{name} を上へ",
   "settings.move_down": "{name} を下へ",
+  "settings.add_service_btn": "＋ サービスを追加",
+  "settings.cancel_add": "キャンセル",
 
   "urlbar.back": "戻る",
   "urlbar.forward": "進む",
