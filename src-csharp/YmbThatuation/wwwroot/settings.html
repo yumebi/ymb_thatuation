@@ -180,6 +180,9 @@
       <label><input type="checkbox" id="notify-muted" /><span data-i18n="settings.notify_muted">このサービスは通知しない</span></label>
     </div>
     <div class="row">
+      <label><input type="checkbox" id="wake-on-click" /><span data-i18n="settings.wake_on_click">スリープ中にアイコンを押したら、すぐスリープを解除する</span></label>
+    </div>
+    <div class="row">
       <label><span data-i18n="settings.chrome_ua_label">ブラウザのUA偽装</span>
         <select id="chrome-ua">
           <option value="" data-i18n="settings.chrome_ua_default">既定(サービスに合わせる)</option>
@@ -275,9 +278,6 @@
     </div>
     <div class="row">
       <label><input type="checkbox" id="g-urlbar" /><span data-i18n="settings.url_bar_enabled">各サービスの上部にURLバーを表示する</span></label>
-    </div>
-    <div class="row">
-      <label><input type="checkbox" id="g-wake-on-click" /><span data-i18n="settings.wake_on_click">スリープ中のサービスのアイコンを押したら、すぐスリープを解除する</span></label>
     </div>
   </div>
 
@@ -451,6 +451,7 @@
       : (t("settings.chatwork_token_placeholder"));
     $("keep-awake").checked = !!inst.keep_awake;
     $("notify-muted").checked = !!inst.notify_muted;
+    $("wake-on-click").checked = !!inst.wake_on_click;
     $("chrome-ua").value = inst.chrome_ua === true ? "true" : inst.chrome_ua === false ? "false" : "";
     $("force-renavigate").checked = !!inst.force_renavigate;
     customIcon = inst.custom_icon || null;
@@ -475,6 +476,7 @@
     $("cw-token-row").style.display = "none";
     $("keep-awake").checked = false;
     $("notify-muted").checked = false;
+    $("wake-on-click").checked = false;
     $("chrome-ua").value = "";
     $("force-renavigate").checked = false;
     customIcon = null;
@@ -649,7 +651,6 @@
     $("g-unread-action").value = cfg.settings.unread_action;
     $("g-shortcuts").checked = cfg.settings.keyboard_shortcuts_enabled;
     $("g-urlbar").checked = cfg.settings.url_bar_enabled;
-    $("g-wake-on-click").checked = !!cfg.settings.wake_on_click;
   }
 
   function updateNotifySoundLabel(path) {
@@ -671,6 +672,7 @@
     const url = $("url").value.trim() || null;
     const keepAwake = $("keep-awake").checked;
     const notifyMuted = $("notify-muted").checked;
+    const wakeOnClick = $("wake-on-click").checked;
     const chatworkToken = $("cw-token").value.trim() || null;
     const clearChatworkToken = $("cw-clear").checked;
     const chromeUaVal = $("chrome-ua").value;
@@ -679,7 +681,7 @@
     if (!name) return;
     try {
       if (editingId) {
-        await invoke("update_instance", { id: editingId, name, color, url, keepAwake, notifyMuted, chatworkToken, clearChatworkToken, customIcon, chromeUa, forceRenavigate, enabledExtensions: instanceExtSelection });
+        await invoke("update_instance", { id: editingId, name, color, url, keepAwake, notifyMuted, wakeOnClick, chatworkToken, clearChatworkToken, customIcon, chromeUa, forceRenavigate, enabledExtensions: instanceExtSelection });
         notify(t("settings.updated"));
         endEdit();
       } else {
@@ -687,10 +689,10 @@
         // add_instanceはkeep_awake/token/icon/UA偽装/拡張選択を受けないため追加後に反映
         const cfg = await invoke("get_config");
         const added = cfg.instances[cfg.instances.length - 1];
-        if (keepAwake || notifyMuted || chatworkToken || customIcon || chromeUa !== null || forceRenavigate || instanceExtSelection.length > 0) {
+        if (keepAwake || notifyMuted || wakeOnClick || chatworkToken || customIcon || chromeUa !== null || forceRenavigate || instanceExtSelection.length > 0) {
           await invoke("update_instance", {
             id: added.id, name: added.name, color: added.color,
-            url: added.url || null, keepAwake, notifyMuted, chatworkToken, customIcon, chromeUa, forceRenavigate,
+            url: added.url || null, keepAwake, notifyMuted, wakeOnClick, chatworkToken, customIcon, chromeUa, forceRenavigate,
             enabledExtensions: instanceExtSelection,
           });
         }
@@ -805,7 +807,6 @@
         unreadAction: $("g-unread-action").value,
         keyboardShortcutsEnabled: $("g-shortcuts").checked,
         urlBarEnabled: $("g-urlbar").checked,
-        wakeOnClick: $("g-wake-on-click").checked,
       });
       await window.reloadI18n();
       window.ymbTheme.applyTheme($("g-theme").value);

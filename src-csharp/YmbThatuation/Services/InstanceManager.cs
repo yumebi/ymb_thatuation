@@ -542,8 +542,8 @@ public class InstanceManager
             return;
         }
 
-        // 「すぐ解除する」設定がオンなら、待機画面を出さずに、そのまま起こして表示する。
-        if (_configStore.Get().Settings.WakeOnClick)
+        // そのサービスの「すぐ解除する」設定がオンなら、待機画面を出さずに、そのまま起こして表示する。
+        if (_configStore.Get().Instances.FirstOrDefault(i => i.Id == id)?.WakeOnClick == true)
         {
             await ActivateAsync(id);
             return;

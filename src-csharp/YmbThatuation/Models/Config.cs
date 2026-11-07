@@ -38,6 +38,13 @@ public class InstanceCfg
     public bool NotifyMuted { get; set; }
 
     /// <summary>
+    /// スリープ中のこのサービスのアイコンを押したとき、待機画面を出さずに、すぐ解除して表示する。
+    /// 既定はオフ(待機画面の「スリープを解除する」ボタンを押すまで起こさない)。
+    /// </summary>
+    [JsonPropertyName("wake_on_click")]
+    public bool WakeOnClick { get; set; }
+
+    /// <summary>
     /// このサービスに読み込む拡張機能(フォルダ名の一覧)。既定は空、つまり無効。
     /// 拡張機能は各サービスのWebView2プロファイルにロードされるとメモリを消費するため、
     /// 全サービス一律ロードではなく、サービスごとに明示的に有効化する方式にしている。
@@ -89,10 +96,6 @@ public class Settings
 
     [JsonPropertyName("url_bar_enabled")]
     public bool UrlBarEnabled { get; set; }
-
-    /// <summary>スリープ中のサービスのアイコンを押したとき、待機画面を出さずに、すぐ解除する。</summary>
-    [JsonPropertyName("wake_on_click")]
-    public bool WakeOnClick { get; set; }
 
     [JsonPropertyName("unread_action")]
     public string UnreadAction { get; set; } = "pulse";

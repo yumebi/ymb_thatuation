@@ -224,6 +224,7 @@ public class IpcBridge
         var chromeUa = GetOptionalBool(args, "chromeUa");
         var forceRenavigate = GetBool(args, "forceRenavigate");
         var notifyMuted = GetBool(args, "notifyMuted");
+        var wakeOnClick = GetBool(args, "wakeOnClick");
         var enabledExtensions = GetStringList(args, "enabledExtensions");
 
         _configStore.Update(c =>
@@ -254,6 +255,7 @@ public class IpcBridge
             inst.ChromeUa = chromeUa;
             inst.ForceRenavigate = forceRenavigate;
             inst.NotifyMuted = notifyMuted;
+            inst.WakeOnClick = wakeOnClick;
             inst.EnabledExtensions = enabledExtensions;
         });
         return null;
@@ -374,7 +376,6 @@ public class IpcBridge
             c.Settings.ActiveRingStyle = GetOptionalString(args, "activeRingStyle") ?? c.Settings.ActiveRingStyle;
             c.Settings.Theme = GetOptionalString(args, "theme") ?? c.Settings.Theme;
             c.Settings.UrlBarEnabled = GetBool(args, "urlBarEnabled", c.Settings.UrlBarEnabled);
-            c.Settings.WakeOnClick = GetBool(args, "wakeOnClick", c.Settings.WakeOnClick);
             c.Settings.UnreadAction = GetOptionalString(args, "unreadAction") ?? c.Settings.UnreadAction;
         });
         AutostartService.SetEnabled(_configStore.Get().Settings.Autostart);

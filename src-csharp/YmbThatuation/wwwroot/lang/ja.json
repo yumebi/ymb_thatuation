@@ -113,7 +113,7 @@
   "settings.unread_action_none": "なし",
   "settings.keyboard_shortcuts": "Ctrl+1〜9でサービスを切り替える",
   "settings.url_bar_enabled": "各サービスの上部にURLバーを表示する",
-  "settings.wake_on_click": "スリープ中のサービスのアイコンを押したら、すぐスリープを解除する",
+  "settings.wake_on_click": "スリープ中にアイコンを押したら、すぐスリープを解除する",
 
   "urlbar.back": "戻る",
   "urlbar.forward": "進む",
