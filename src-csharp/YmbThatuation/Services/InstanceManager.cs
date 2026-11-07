@@ -479,21 +479,58 @@ public class InstanceManager
         _sidebarWebView.Dispose();
     }
 
-    /// <summary>展開済みChrome拡張をWebView2プロファイルに読み込む。Tauri版のload_extensions_into相当。</summary>
+    /// <summary>
+    /// 展開済みChrome拡張をWebView2プロファイルに読み込む。Tauri版のload_extensions_into相当。
+    /// 有効にしていない拡張がプロファイルに残っていると、使わないサービスでも拡張の常駐処理(Service Worker)と
+    /// 全ページへの注入が動き続けてメモリを食うため、有効なもの以外は外す。
+    /// </summary>
     private async Task LoadExtensionsIntoAsync(WebView2 webview, InstanceCfg inst)
     {
-        if (Extensions == null || inst.EnabledExtensions.Count == 0) return;
-        foreach (var ext in Extensions.ScanExtensions())
+        if (Extensions == null) return;
+        var profile = webview.CoreWebView2.Profile;
+        var wantedIds = new HashSet<string>(StringComparer.Ordinal);
+        var addFailed = false;
+
+        if (inst.EnabledExtensions.Count > 0)
         {
-            if (!inst.EnabledExtensions.Contains(System.IO.Path.GetFileName(ext.Path))) continue;
-            try
+            foreach (var ext in Extensions.ScanExtensions())
             {
-                await webview.CoreWebView2.Profile.AddBrowserExtensionAsync(ext.Path);
+                if (!inst.EnabledExtensions.Contains(System.IO.Path.GetFileName(ext.Path))) continue;
+                try
+                {
+                    var added = await profile.AddBrowserExtensionAsync(ext.Path);
+                    wantedIds.Add(added.Id);
+                }
+                catch (Exception e)
+                {
+                    addFailed = true;
+                    System.Diagnostics.Debug.WriteLine($"[ext] failed {ext.Path}: {e.Message}");
+                }
             }
-            catch (Exception e)
+        }
+
+        // 追加に失敗したものがあると、有効にしたいものまで外してしまう恐れがあるので、その回は外さない。
+        if (addFailed) return;
+
+        try
+        {
+            foreach (var registered in await profile.GetBrowserExtensionsAsync())
             {
-                System.Diagnostics.Debug.WriteLine($"[ext] failed {ext.Path}: {e.Message}");
+                if (wantedIds.Contains(registered.Id)) continue;
+                try
+                {
+                    await registered.RemoveAsync();
+                    System.Diagnostics.Debug.WriteLine($"[ext] removed {registered.Id} ({registered.Name}) from instance {inst.Id}");
+                }
+                catch (Exception e)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ext] remove failed {registered.Id}: {e.Message}");
+                }
             }
+        }
+        catch (Exception e)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ext] list failed for instance {inst.Id}: {e.Message}");
         }
     }
 
