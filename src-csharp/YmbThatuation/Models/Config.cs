@@ -90,6 +90,10 @@ public class Settings
     [JsonPropertyName("url_bar_enabled")]
     public bool UrlBarEnabled { get; set; }
 
+    /// <summary>スリープ中のサービスのアイコンを押したとき、待機画面を出さずに、すぐ解除する。</summary>
+    [JsonPropertyName("wake_on_click")]
+    public bool WakeOnClick { get; set; }
+
     [JsonPropertyName("unread_action")]
     public string UnreadAction { get; set; } = "pulse";
 

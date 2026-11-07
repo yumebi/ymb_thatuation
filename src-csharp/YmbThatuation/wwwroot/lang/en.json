@@ -113,6 +113,7 @@
   "settings.unread_action_none": "None",
   "settings.keyboard_shortcuts": "Switch services with Ctrl+1-9",
   "settings.url_bar_enabled": "Show a URL bar above each service",
+  "settings.wake_on_click": "Wake a sleeping service as soon as its icon is clicked",
 
   "urlbar.back": "Back",
   "urlbar.forward": "Forward",

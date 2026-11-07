@@ -542,6 +542,13 @@ public class InstanceManager
             return;
         }
 
+        // 「すぐ解除する」設定がオンなら、待機画面を出さずに、そのまま起こして表示する。
+        if (_configStore.Get().Settings.WakeOnClick)
+        {
+            await ActivateAsync(id);
+            return;
+        }
+
         HideOthers(null);
         PendingWakeId = id;
         _welcomePanel.Visibility = Visibility.Visible;

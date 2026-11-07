@@ -374,6 +374,7 @@ public class IpcBridge
             c.Settings.ActiveRingStyle = GetOptionalString(args, "activeRingStyle") ?? c.Settings.ActiveRingStyle;
             c.Settings.Theme = GetOptionalString(args, "theme") ?? c.Settings.Theme;
             c.Settings.UrlBarEnabled = GetBool(args, "urlBarEnabled", c.Settings.UrlBarEnabled);
+            c.Settings.WakeOnClick = GetBool(args, "wakeOnClick", c.Settings.WakeOnClick);
             c.Settings.UnreadAction = GetOptionalString(args, "unreadAction") ?? c.Settings.UnreadAction;
         });
         AutostartService.SetEnabled(_configStore.Get().Settings.Autostart);

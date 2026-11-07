@@ -276,6 +276,9 @@
     <div class="row">
       <label><input type="checkbox" id="g-urlbar" /><span data-i18n="settings.url_bar_enabled">各サービスの上部にURLバーを表示する</span></label>
     </div>
+    <div class="row">
+      <label><input type="checkbox" id="g-wake-on-click" /><span data-i18n="settings.wake_on_click">スリープ中のサービスのアイコンを押したら、すぐスリープを解除する</span></label>
+    </div>
   </div>
 
   <div class="section-card">
@@ -646,6 +649,7 @@
     $("g-unread-action").value = cfg.settings.unread_action;
     $("g-shortcuts").checked = cfg.settings.keyboard_shortcuts_enabled;
     $("g-urlbar").checked = cfg.settings.url_bar_enabled;
+    $("g-wake-on-click").checked = !!cfg.settings.wake_on_click;
   }
 
   function updateNotifySoundLabel(path) {
@@ -801,6 +805,7 @@
         unreadAction: $("g-unread-action").value,
         keyboardShortcutsEnabled: $("g-shortcuts").checked,
         urlBarEnabled: $("g-urlbar").checked,
+        wakeOnClick: $("g-wake-on-click").checked,
       });
       await window.reloadI18n();
       window.ymbTheme.applyTheme($("g-theme").value);
