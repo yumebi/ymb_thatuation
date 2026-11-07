@@ -108,6 +108,24 @@
   #msg.err { color: #e58c8c; }
   label { color: var(--text-secondary, #aeb0b8); font-size: 13px; display: flex; align-items: center; gap: 6px; }
   input[type="checkbox"] { width: 16px; height: 16px; }
+  .svc-handle { cursor: grab; color: var(--text-faint, #777); font-size: 16px; padding: 0 2px; user-select: none; touch-action: none; flex-shrink: 0; }
+  .svc-row.dragging { opacity: 0.5; }
+  .svc-row.drop-before { box-shadow: inset 0 2px 0 var(--accent, #3a5bbf); }
+  .svc-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent, #3a5bbf); }
+  dialog#edit-dialog {
+    background: var(--bg-surface, #25262b);
+    color: var(--text-primary, #e4e5ea);
+    border: 1px solid var(--border, #3a3c44);
+    border-radius: 10px;
+    padding: 4px 16px 16px;
+    width: min(640px, calc(100% - 32px));
+    max-height: 90vh;
+    overflow: auto;
+  }
+  dialog#edit-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+  dialog#edit-dialog h2 { margin-top: 12px; }
+  #dlg-msg { color: var(--success, #7fd0a0); font-size: 13px; margin: 8px 0 0; min-height: 1.2em; }
+  #dlg-msg.err { color: #e58c8c; }
 </style>
 </head>
 <body>
@@ -128,7 +146,8 @@
   </h2>
   <div id="list" class="svc-list"></div>
 
-  <h2 id="form-title" data-i18n="settings.add_service_title">サービスを追加</h2>
+  <div id="form-slot"><div id="form-wrap">
+  <h2 id="form-title">サービスを追加</h2>
   <form id="add" class="section-card">
     <div class="row">
       <select id="recipe">
@@ -207,10 +226,11 @@
       <button type="button" class="ghost" id="icon-clear" data-i18n="settings.icon_reset">アイコンをリセット</button>
     </div>
     <div class="row">
-      <button type="submit" id="submit-btn" data-i18n="settings.add">追加</button>
+      <button type="submit" id="submit-btn">追加</button>
       <button type="button" class="ghost" id="cancel-edit" data-i18n="settings.cancel_edit" style="display:none">編集をやめる</button>
     </div>
   </form>
+  </div></div>
   </div>
 
   <div class="tab-panel" id="tab-general">
@@ -356,6 +376,10 @@
 
   <p id="msg"></p>
 </main>
+<dialog id="edit-dialog" aria-labelledby="form-title">
+  <div id="dialog-body"></div>
+  <p id="dlg-msg" role="status"></p>
+</dialog>
 <script src="theme.js"></script>
 <script src="i18n.js"></script>
 <script>
@@ -371,15 +395,58 @@
       });
   const msg = document.getElementById("msg");
   const $ = (id) => document.getElementById(id);
+  const dlg = $("edit-dialog");
+  const mk = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  };
   let editingId = null;
+  let editingName = "";
+  let dragging = false; // ドラッグ中は一覧の作り直しを保留する(つかんでいる行が消えないように)
+  let renderPending = false;
+  let dragState = null;
+  let notifyTimer = null;
   let customIcon = null; // 選択中のカスタムアイコン(data URL) / null=未設定
   let instanceExtSelection = []; // フォームで選択中の拡張機能(フォルダ名の配列)
 
   function notify(text, isErr) {
+    const dm = $("dlg-msg");
     msg.textContent = text;
     msg.className = isErr ? "err" : "";
-    setTimeout(() => { msg.textContent = ""; }, 5000);
+    // 編集ダイアログが開いている間は、ダイアログの中にも出す(ページ下部の通知は背景に隠れるため)
+    dm.textContent = dlg.open ? text : "";
+    dm.className = isErr ? "err" : "";
+    clearTimeout(notifyTimer);
+    notifyTimer = setTimeout(() => { msg.textContent = ""; dm.textContent = ""; }, isErr ? 10000 : 5000);
   }
+
+  // フォームの見出しとボタンの文言。data-i18n では言語の再適用で「追加」に戻ってしまうため、ここで決める。
+  function syncFormTexts() {
+    $("form-title").textContent = editingId
+      ? t("settings.edit_service_title", { name: editingName })
+      : t("settings.add_service_title");
+    $("submit-btn").textContent = editingId ? t("settings.update") : t("settings.add");
+  }
+  document.addEventListener("i18n-ready", syncFormTexts);
+
+  // 編集フォームは、通常は一覧の下(置き場)に置き、編集するときはダイアログに移す
+  function openFormDialog() {
+    $("dialog-body").appendChild($("form-wrap"));
+    $("dlg-msg").textContent = "";
+    if (!dlg.open) dlg.showModal();
+    $("name").focus();
+  }
+  function closeFormDialog() {
+    if (dlg.open) dlg.close();
+    $("form-slot").appendChild($("form-wrap"));
+  }
+  // Esc などで閉じられたときも、編集をやめた扱いにして、フォームを元の場所に戻す
+  dlg.addEventListener("close", () => {
+    if (editingId) endEdit();
+    else $("form-slot").appendChild($("form-wrap"));
+  });
 
   // 既定のWebコンテキストメニューを出さない
   document.addEventListener("contextmenu", (ev) => {
@@ -434,7 +501,8 @@
 
   function startEdit(inst) {
     editingId = inst.id;
-    $("form-title").textContent = t("settings.edit_service_title", { name: inst.name });
+    editingName = inst.name;
+    switchTab("services");
     $("recipe").value = inst.recipe;
     $("recipe").disabled = true;
     $("name").value = inst.name;
@@ -459,14 +527,14 @@
     updateIconPreview(inst);
     instanceExtSelection = inst.enabled_extensions || [];
     renderInstanceExtChecklist();
-    $("submit-btn").textContent = t("settings.update");
+    syncFormTexts();
     $("cancel-edit").style.display = "";
-    window.scrollTo({ top: $("form-title").offsetTop, behavior: "smooth" });
+    openFormDialog();
   }
 
   function endEdit() {
     editingId = null;
-    $("form-title").textContent = t("settings.add_service_title");
+    editingName = "";
     $("recipe").disabled = false;
     $("name").value = "";
     $("url").value = "";
@@ -484,8 +552,9 @@
     updateIconPreview({});
     instanceExtSelection = [];
     renderInstanceExtChecklist();
-    $("submit-btn").textContent = t("settings.add");
+    syncFormTexts();
     $("cancel-edit").style.display = "none";
+    closeFormDialog();
   }
 
   $("icon-file").addEventListener("change", () => {
@@ -539,7 +608,8 @@
     }
   });
 
-  async function render() {
+  async function render(opts) {
+    if (dragging) { renderPending = true; return; }
     const cfg = await invoke("get_config");
     let mem = {};
     let alive = {};
@@ -566,43 +636,68 @@
     cfg.instances.forEach((inst, idx) => {
       const row = document.createElement("div");
       row.className = "svc-row";
-      const urlNote = inst.url ? `<span class="svc-url">${inst.url}</span>` : "";
-      const statusParts = [];
-      if (inst.keep_awake) statusParts.push(`<span class="awake-tag">${t("settings.always_on")}</span>`);
-      if (mem[inst.id]) statusParts.push(`<span>${mem[inst.id]}</span>`);
-      const iconSrc = inst.custom_icon || `icons/${inst.recipe}.svg`;
-      const letter = (inst.name || "?").trim().charAt(0).toUpperCase() || "?";
-      row.innerHTML =
-        `<div class="svc-avatar"><img alt="" style="display:none" /><span class="svc-letter" style="display:none"></span></div>` +
-        `<div class="svc-info">` +
-          `<div class="svc-name-line"><span class="svc-name">${inst.name}</span>` +
-          `<span class="color-chip" style="background:${inst.color}"></span>${urlNote}</div>` +
-          `<div class="svc-status">${statusParts.join(" ・ ")}</div>` +
-        `</div>` +
-        `<span class="recipe-tag">${inst.recipe}</span>` +
-        `<div class="svc-actions">` +
-          `<button class="ghost up" ${idx === 0 ? "disabled" : ""}>↑</button>` +
-          `<button class="ghost down" ${idx === cfg.instances.length - 1 ? "disabled" : ""}>↓</button>` +
-          `<button class="ghost reload" ${alive[inst.id] ? "" : "disabled"}>${t("settings.reload")}</button>` +
-          `<button class="ghost reset-ext" title="${t("settings.reset_ext_title")}">${t("settings.reset_ext")}</button>` +
-          `<button class="ghost edit">${t("settings.edit")}</button>` +
-          `<button class="danger del">${t("settings.delete")}</button>` +
-        `</div>`;
+      row.dataset.id = inst.id;
 
-      const img = row.querySelector(".svc-avatar img");
-      const letterEl = row.querySelector(".svc-letter");
+      const handle = mk("span", "svc-handle", "⋮⋮");
+      handle.title = t("settings.drag_handle");
+      handle.setAttribute("aria-hidden", "true");
+
+      const avatar = mk("div", "svc-avatar");
+      const img = document.createElement("img");
+      img.alt = "";
+      img.style.display = "none";
+      const letterEl = mk("span", "svc-letter", (inst.name || "?").trim().charAt(0).toUpperCase() || "?");
+      letterEl.style.display = "none";
+      avatar.append(img, letterEl);
+
+      const info = mk("div", "svc-info");
+      const nameLine = mk("div", "svc-name-line");
+      const chip = mk("span", "color-chip");
+      chip.style.background = inst.color;
+      nameLine.append(mk("span", "svc-name", inst.name), chip);
+      if (inst.url) nameLine.append(mk("span", "svc-url", inst.url));
+      const status = mk("div", "svc-status");
+      const parts = [];
+      if (inst.keep_awake) parts.push(mk("span", "awake-tag", t("settings.always_on")));
+      if (mem[inst.id]) parts.push(mk("span", "", mem[inst.id]));
+      parts.forEach((p, i) => {
+        if (i) status.append(document.createTextNode(" ・ "));
+        status.append(p);
+      });
+      info.append(nameLine, status);
+
+      const actions = mk("div", "svc-actions");
+      const btn = (cls, text, label) => {
+        const b = mk("button", cls, text);
+        b.type = "button";
+        if (label) b.setAttribute("aria-label", label);
+        return b;
+      };
+      const up = btn("ghost up", "↑", t("settings.move_up", { name: inst.name }));
+      const down = btn("ghost down", "↓", t("settings.move_down", { name: inst.name }));
+      up.disabled = idx === 0;
+      down.disabled = idx === cfg.instances.length - 1;
+      const reload = btn("ghost reload", t("settings.reload"));
+      reload.disabled = !alive[inst.id];
+      const resetExt = btn("ghost reset-ext", t("settings.reset_ext"));
+      resetExt.title = t("settings.reset_ext_title");
+      const edit = btn("ghost edit", t("settings.edit"));
+      const del = btn("danger del", t("settings.delete"));
+      actions.append(up, down, reload, resetExt, edit, del);
+
+      row.append(handle, avatar, info, mk("span", "recipe-tag", inst.recipe), actions);
+
       img.onerror = () => { img.style.display = "none"; letterEl.style.display = ""; };
       img.onload = () => { img.style.display = ""; letterEl.style.display = "none"; };
-      letterEl.textContent = letter;
-      img.src = iconSrc;
+      img.src = inst.custom_icon || `icons/${inst.recipe}.svg`;
 
-      row.querySelector(".up").addEventListener("click", async () => {
+      up.addEventListener("click", async () => {
         await invoke("move_instance", { id: inst.id, delta: -1 }).catch((e) => notify(String(e), true));
-        render();
+        render({ focus: { id: inst.id, cls: "up" } });
       });
-      row.querySelector(".down").addEventListener("click", async () => {
+      down.addEventListener("click", async () => {
         await invoke("move_instance", { id: inst.id, delta: 1 }).catch((e) => notify(String(e), true));
-        render();
+        render({ focus: { id: inst.id, cls: "down" } });
       });
       row.querySelector(".reload").addEventListener("click", async () => {
         try {
@@ -636,6 +731,15 @@
       });
       list.appendChild(row);
     });
+    // 並べ替えのあとも、押したボタンにフォーカスを戻す(キーボードで続けて押せるように)
+    if (opts && opts.focus) {
+      const target = [...list.querySelectorAll(".svc-row")].find((r) => r.dataset.id === opts.focus.id);
+      if (target) {
+        let b = target.querySelector("." + opts.focus.cls);
+        if (b && b.disabled) b = target.querySelector(opts.focus.cls === "up" ? ".down" : ".up");
+        if (b && !b.disabled) b.focus();
+      }
+    }
     $("sleep-min").value = cfg.settings.sleep_after_minutes;
     $("g-autostart").checked = cfg.settings.autostart;
     $("g-minimized").checked = cfg.settings.start_minimized;
@@ -724,16 +828,17 @@
     for (const ext of exts) {
       const row = document.createElement("div");
       row.className = "svc-row";
-      const letter = (ext.name || "?").trim().charAt(0).toUpperCase() || "?";
-      row.innerHTML =
-        `<div class="svc-avatar"><span class="svc-letter">${letter}</span></div>` +
-        `<div class="svc-info">` +
-          `<div class="svc-name-line"><span class="svc-name">${ext.name}</span>` +
-          `<span class="svc-url">v${ext.version}</span></div>` +
-          `<div class="svc-status">${ext.description.slice(0, 60)}</div>` +
-        `</div>` +
-        `<span class="recipe-tag">MV${ext.manifest_version}</span>` +
-        `<div class="svc-actions"><button class="danger">${t("settings.delete")}</button></div>`;
+      const avatar = mk("div", "svc-avatar");
+      avatar.append(mk("span", "svc-letter", (ext.name || "?").trim().charAt(0).toUpperCase() || "?"));
+      const info = mk("div", "svc-info");
+      const nameLine = mk("div", "svc-name-line");
+      nameLine.append(mk("span", "svc-name", ext.name), mk("span", "svc-url", "v" + ext.version));
+      const desc = mk("div", "svc-status", (ext.description || "").slice(0, 60));
+      desc.title = ext.description || "";
+      info.append(nameLine, desc);
+      const act = mk("div", "svc-actions");
+      act.append(mk("button", "danger", t("settings.delete")));
+      row.append(avatar, info, mk("span", "recipe-tag", "MV" + ext.manifest_version), act);
       row.querySelector("button").addEventListener("click", async () => {
         if (!confirm(t("settings.ext_delete_confirm", { name: ext.name }))) return;
         try {
@@ -915,6 +1020,70 @@
     if (inst) startEdit(inst);
   };
 
+  (function setupDragReorder() {
+    const list = $("list");
+    const clearMarks = () =>
+      list.querySelectorAll(".drop-before,.drop-after").forEach((r) => r.classList.remove("drop-before", "drop-after"));
+
+    list.addEventListener("pointerdown", (ev) => {
+      const handle = ev.target.closest(".svc-handle");
+      if (!handle || ev.button !== 0 || dragState) return;
+      const row = handle.closest(".svc-row");
+      if (!row) return;
+      ev.preventDefault();
+      handle.setPointerCapture(ev.pointerId);
+      dragState = { row, id: row.dataset.id, handle, pointerId: ev.pointerId, target: null, after: false };
+      dragging = true;
+      row.classList.add("dragging");
+    });
+
+    list.addEventListener("pointermove", (ev) => {
+      if (!dragState || ev.pointerId !== dragState.pointerId) return;
+      const rows = [...list.querySelectorAll(".svc-row")].filter((r) => r !== dragState.row);
+      let target = null;
+      let after = false;
+      for (const r of rows) {
+        const rc = r.getBoundingClientRect();
+        if (ev.clientY >= rc.top && ev.clientY < rc.bottom) {
+          target = r;
+          after = ev.clientY > rc.top + rc.height / 2;
+          break;
+        }
+      }
+      if (!target && rows.length) {
+        // 一覧の外(最初の行より上、最後の行より下)にいるときは、端に付ける
+        if (ev.clientY < rows[0].getBoundingClientRect().top) { target = rows[0]; after = false; }
+        else if (ev.clientY >= rows[rows.length - 1].getBoundingClientRect().bottom) { target = rows[rows.length - 1]; after = true; }
+      }
+      clearMarks();
+      if (target) target.classList.add(after ? "drop-after" : "drop-before");
+      dragState.target = target;
+      dragState.after = after;
+    });
+
+    async function finishDrag(ev, cancelled) {
+      const s = dragState;
+      if (!s || ev.pointerId !== s.pointerId) return;
+      dragState = null;
+      s.row.classList.remove("dragging");
+      clearMarks();
+      try { s.handle.releasePointerCapture(s.pointerId); } catch { /* すでに外れている */ }
+      if (!cancelled && s.target) {
+        const current = [...list.querySelectorAll(".svc-row")].map((r) => r.dataset.id);
+        const ids = current.filter((id) => id !== s.id);
+        ids.splice(ids.indexOf(s.target.dataset.id) + (s.after ? 1 : 0), 0, s.id);
+        if (ids.join("\n") !== current.join("\n")) {
+          try { await invoke("reorder_instances", { ids }); } catch (e) { notify(String(e), true); }
+        }
+      }
+      dragging = false;
+      renderPending = false;
+      await render();
+    }
+    list.addEventListener("pointerup", (ev) => finishDrag(ev, false));
+    list.addEventListener("pointercancel", (ev) => finishDrag(ev, true));
+  })();
+
   updateIconPreview({});
   window.i18nReady.then(async () => {
     document.title = t("settings.page_title");
@@ -924,7 +1093,7 @@
     renderExtensions();
   });
   const editParam = new URLSearchParams(location.search).get("edit");
-  if (editParam) window.startEditById(editParam);
+  if (editParam) window.i18nReady.then(() => window.startEditById(editParam));
 </script>
 </body>
 </html>

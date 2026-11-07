@@ -50,6 +50,7 @@ public class IpcBridge
                 "update_instance" => UpdateInstance(args),
                 "remove_instance" => await RemoveInstance(args),
                 "move_instance" => MoveInstance(args),
+                "reorder_instances" => ReorderInstances(args),
                 "update_settings" => UpdateSettings(args),
                 "show_context_menu" => await ShowContextMenu(args),
                 "close_context_menu" => null,
@@ -266,6 +267,56 @@ public class IpcBridge
         var id = GetId(args);
         await _instanceManager.RemoveInstanceAsync(id);
         _configStore.Update(c => c.Instances.RemoveAll(i => i.Id == id));
+        return null;
+    }
+
+    /// <summary>
+    /// サービスの並び全体(IDの配列)を受け取り、その順に並べ直す(ドラッグでの並べ替え用)。
+    /// 先に全部を検証してから、1回の代入で入れ替える。配列でない・文字列でない・件数が違う・重複・
+    /// 存在しないIDのどれかがあれば、何も変えずにエラーにする(欠けたIDを黙って補うことはしない)。
+    /// </summary>
+    private object? ReorderInstances(Dictionary<string, JsonElement> args)
+    {
+        if (!args.TryGetValue("ids", out var el) || el.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException("ids が配列ではありません");
+        }
+        var ids = new List<string>();
+        foreach (var item in el.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+            {
+                throw new InvalidOperationException("ids に文字列でない値があります");
+            }
+            ids.Add(item.GetString() ?? "");
+        }
+
+        _configStore.Update(c =>
+        {
+            if (ids.Count != c.Instances.Count)
+            {
+                throw new InvalidOperationException("サービスの数が一致しません(画面を開き直してください)");
+            }
+            if (ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
+            {
+                throw new InvalidOperationException("ids に重複があります");
+            }
+            var byId = new Dictionary<string, InstanceCfg>(StringComparer.Ordinal);
+            foreach (var inst in c.Instances)
+            {
+                byId[inst.Id] = inst;
+            }
+            var reordered = new List<InstanceCfg>(ids.Count);
+            foreach (var id in ids)
+            {
+                if (!byId.TryGetValue(id, out var inst))
+                {
+                    throw new InvalidOperationException($"存在しないIDです: {id}");
+                }
+                reordered.Add(inst);
+            }
+            c.Instances = reordered;
+        });
         return null;
     }
 

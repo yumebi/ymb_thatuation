@@ -114,6 +114,9 @@
   "settings.keyboard_shortcuts": "Switch services with Ctrl+1-9",
   "settings.url_bar_enabled": "Show a URL bar above each service",
   "settings.wake_on_click": "Wake this service as soon as its icon is clicked while asleep",
+  "settings.drag_handle": "Drag to reorder",
+  "settings.move_up": "Move {name} up",
+  "settings.move_down": "Move {name} down",
 
   "urlbar.back": "Back",
   "urlbar.forward": "Forward",

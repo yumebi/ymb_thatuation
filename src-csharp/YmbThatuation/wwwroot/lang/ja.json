@@ -114,6 +114,9 @@
   "settings.keyboard_shortcuts": "Ctrl+1〜9でサービスを切り替える",
   "settings.url_bar_enabled": "各サービスの上部にURLバーを表示する",
   "settings.wake_on_click": "スリープ中にアイコンを押したら、すぐスリープを解除する",
+  "settings.drag_handle": "ドラッグして並べ替え",
+  "settings.move_up": "{name} を上へ",
+  "settings.move_down": "{name} を下へ",
 
   "urlbar.back": "戻る",
   "urlbar.forward": "進む",
