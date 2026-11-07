@@ -212,22 +212,30 @@ public class ExtensionsService
             ?? throw new InvalidOperationException("拡張IDが見つかりません。CWSのURLか32文字のIDを入力してください");
 
         var dest = Path.Combine(ExtensionsDir(), id);
+        // 一時フォルダにダウンロードして展開し、成功してから入れ替える
+        // (通信に失敗したとき、入っている拡張を先に消してしまわないように)
+        var tmp = Path.Combine(ExtensionsDir(), $"{id}.install-tmp");
+        if (Directory.Exists(tmp))
+        {
+            Directory.Delete(tmp, recursive: true);
+        }
+        try
+        {
+            await FetchAndExtractCrxAsync(id, tmp);
+        }
+        catch
+        {
+            if (Directory.Exists(tmp))
+            {
+                Directory.Delete(tmp, recursive: true);
+            }
+            throw;
+        }
         if (Directory.Exists(dest))
         {
             Directory.Delete(dest, recursive: true);
         }
-        try
-        {
-            await FetchAndExtractCrxAsync(id, dest);
-        }
-        catch
-        {
-            if (Directory.Exists(dest))
-            {
-                Directory.Delete(dest, recursive: true);
-            }
-            throw;
-        }
+        Directory.Move(tmp, dest);
         return id;
     }
 
@@ -334,14 +342,26 @@ public class ExtensionsService
     public void RemoveExtension(string path)
     {
         var dir = ExtensionsDir();
-        var fullDir = Path.GetFullPath(dir);
-        var fullTarget = Path.GetFullPath(path);
-        if (!(fullTarget == fullDir
-              || fullTarget.StartsWith(fullDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+        var seps = new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar };
+        var fullDir = Path.GetFullPath(dir).TrimEnd(seps);
+        // 末尾に区切りがあっても(例: ...\extensions\)、拡張機能フォルダそのものとして扱う
+        var fullTarget = Path.GetFullPath(path).TrimEnd(seps);
+        // 拡張機能フォルダそのもの(全部の拡張が入っている場所)は、消せない。その中の拡張だけを消せる。
+        if (!fullTarget.StartsWith(fullDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("拡張機能フォルダ外は削除できません");
         }
         Directory.Delete(fullTarget, recursive: true);
+
+        // 消した拡張を、各サービスの「有効にする拡張」の一覧からも外す(消えた名前が設定に残らないように)
+        var folderName = Path.GetFileName(fullTarget);
+        _configStore.Update(c =>
+        {
+            foreach (var inst in c.Instances)
+            {
+                inst.EnabledExtensions.RemoveAll(n => string.Equals(n, folderName, StringComparison.OrdinalIgnoreCase));
+            }
+        });
     }
 
     public void OpenExtensionsDir()

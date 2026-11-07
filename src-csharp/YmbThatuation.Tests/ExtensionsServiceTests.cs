@@ -18,6 +18,39 @@ public class ExtensionsServiceTests
     }
 
     [Fact]
+    public void RemoveExtension_ExtensionsDirItself_Throws()
+    {
+        var svc = NewService(out _);
+        Assert.Throws<InvalidOperationException>(() => svc.RemoveExtension(svc.ExtensionsDir()));
+        Assert.Throws<InvalidOperationException>(() => svc.RemoveExtension(svc.ExtensionsDir() + Path.DirectorySeparatorChar));
+        Assert.True(Directory.Exists(svc.ExtensionsDir()));
+    }
+
+    [Fact]
+    public void RemoveExtension_DeletesFolder_AndDropsItFromEveryInstance()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "ymb-thatuation-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var store = new ConfigStore(dir);
+        var svc = new ExtensionsService(store);
+        var extPath = Path.Combine(svc.ExtensionsDir(), ValidId);
+        Directory.CreateDirectory(extPath);
+        File.WriteAllText(Path.Combine(extPath, "manifest.json"), "{}");
+        store.Update(c =>
+        {
+            c.Instances[0].EnabledExtensions = new List<string> { ValidId, "keep-me" };
+            c.Instances[1].EnabledExtensions = new List<string> { ValidId.ToUpperInvariant() };
+        });
+
+        svc.RemoveExtension(extPath);
+
+        Assert.False(Directory.Exists(extPath));
+        var after = new ConfigStore(dir).Get();
+        Assert.Equal(new[] { "keep-me" }, after.Instances[0].EnabledExtensions);
+        Assert.Empty(after.Instances[1].EnabledExtensions);
+    }
+
+    [Fact]
     public void ParseExtensionId_PlainId_ReturnsItself()
     {
         Assert.Equal(ValidId, ExtensionsService.ParseExtensionId(ValidId));

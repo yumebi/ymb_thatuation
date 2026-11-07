@@ -101,7 +101,7 @@
     font-size: 14px;
   }
   .tab-btn:hover { filter: none; color: var(--text-primary, #e4e5ea); background: var(--bg-row, #2c2d33); }
-  .tab-btn.active { color: #fff; border-bottom-color: var(--accent, #3a5bbf); }
+  .tab-btn.active { color: var(--text-primary, #fff); border-bottom-color: var(--accent, #3a5bbf); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
   #msg { color: var(--success, #7fd0a0); font-size: 13px; margin-top: 10px; min-height: 1.2em; }
@@ -317,9 +317,10 @@
   <div class="tab-panel" id="tab-extensions">
   <h2 data-i18n="settings.ext_heading">拡張機能 (Chrome拡張)</h2>
   <p data-i18n-html="settings.ext_desc" style="color:#aeb0b8;font-size:13px;line-height:1.6">
-    展開済み(unpacked)のChrome拡張を拡張機能フォルダに置くと、サービス起動時に読み込まれます。<br>
-    反映するには対象サービスを一度スリープして再表示してください。
-    ※コンテンツ系拡張(uBlock Origin / Dark Reader 等)が対象。ストアからの直接インストールやポップアップUIは非対応です。
+    展開済み(unpacked)のChrome拡張を拡張機能フォルダに置くか、下の「ストアからインストール」で入れると、この一覧に表示されます。<br>
+    入れただけでは、どのサービスでも無効です。サービスタブの「編集」で、使うサービスにだけ有効にしてください。<br>
+    反映するには、対象サービスをスリープして、もう一度表示してください。
+    ※コンテンツ系拡張(uBlock Origin / Dark Reader 等)が対象で、ポップアップUIは非対応です。
   </p>
   <div id="ext-list" class="svc-list"></div>
   <div class="section-card">
@@ -374,7 +375,7 @@
 
   </div>
 
-  <p id="msg"></p>
+  <p id="msg" role="status"></p>
 </main>
 <dialog id="edit-dialog" aria-labelledby="form-title">
   <div id="dialog-body"></div>
@@ -455,7 +456,10 @@
 
   function switchTab(name) {
     document.querySelectorAll(".tab-btn").forEach((b) => {
-      b.classList.toggle("active", b.dataset.tab === name);
+      const on = b.dataset.tab === name;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      b.tabIndex = on ? 0 : -1;
     });
     document.querySelectorAll(".tab-panel").forEach((p) => {
       p.classList.toggle("active", p.id === `tab-${name}` || p.id === `tab-${name}2`);
@@ -463,6 +467,24 @@
   }
   document.querySelectorAll(".tab-btn").forEach((b) => {
     b.addEventListener("click", () => switchTab(b.dataset.tab));
+    b.setAttribute("role", "tab");
+  });
+  document.querySelector(".tabs").setAttribute("role", "tablist");
+  switchTab(document.querySelector(".tab-btn.active")?.dataset.tab || "services");
+  // 左右の矢印キー(Home / End も)でタブを移動する
+  document.querySelector(".tabs").addEventListener("keydown", (ev) => {
+    const tabs = [...document.querySelectorAll(".tab-btn")];
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    let next = -1;
+    if (ev.key === "ArrowRight") next = (i + 1) % tabs.length;
+    else if (ev.key === "ArrowLeft") next = (i - 1 + tabs.length) % tabs.length;
+    else if (ev.key === "Home") next = 0;
+    else if (ev.key === "End") next = tabs.length - 1;
+    if (next < 0) return;
+    ev.preventDefault();
+    switchTab(tabs[next].dataset.tab);
+    tabs[next].focus();
   });
 
   function updateIconPreview(inst) {
@@ -750,11 +772,20 @@
     updateNotifySoundLabel(cfg.settings.notification_sound_path);
     $("g-staggered-startup").checked = cfg.settings.staggered_startup;
     $("startup-delay").value = cfg.settings.startup_delay_seconds;
+    syncGeneralDeps();
     $("g-theme").value = cfg.settings.theme;
     $("g-ring-style").value = cfg.settings.active_ring_style;
     $("g-unread-action").value = cfg.settings.unread_action;
     $("g-shortcuts").checked = cfg.settings.keyboard_shortcuts_enabled;
     $("g-urlbar").checked = cfg.settings.url_bar_enabled;
+  }
+
+  // 関係ない設定が操作できてしまわないように、連動する欄を無効にする
+  function syncGeneralDeps() {
+    $("startup-delay").disabled = !$("g-staggered-startup").checked;
+    $("g-notify-sound").disabled = !$("g-notify").checked;
+    const soundOn = $("g-notify").checked && $("g-notify-sound").checked;
+    for (const id of ["notify-sound-select", "notify-sound-reset", "notify-sound-test"]) $(id).disabled = !soundOn;
   }
 
   function updateNotifySoundLabel(path) {
@@ -818,6 +849,7 @@
 
   async function renderExtensions() {
     const exts = await invoke("get_extensions");
+    const cfgForExt = await invoke("get_config");
     const list = $("ext-list");
     list.innerHTML = "";
     if (exts.length === 0) {
@@ -835,12 +867,20 @@
       nameLine.append(mk("span", "svc-name", ext.name), mk("span", "svc-url", "v" + ext.version));
       const desc = mk("div", "svc-status", (ext.description || "").slice(0, 60));
       desc.title = ext.description || "";
-      info.append(nameLine, desc);
+      const folder = ext.path.split(/[\\/]/).pop();
+      const usedBy = cfgForExt.instances
+        .filter((i) => (i.enabled_extensions || []).includes(folder))
+        .map((i) => i.name);
+      const usage = mk("div", "svc-status", usedBy.length ? t("settings.ext_used_by", { names: usedBy.join(", ") }) : t("settings.ext_unused"));
+      info.append(nameLine, desc, usage);
       const act = mk("div", "svc-actions");
       act.append(mk("button", "danger", t("settings.delete")));
       row.append(avatar, info, mk("span", "recipe-tag", "MV" + ext.manifest_version), act);
       row.querySelector("button").addEventListener("click", async () => {
-        if (!confirm(t("settings.ext_delete_confirm", { name: ext.name }))) return;
+        const q = usedBy.length
+          ? t("settings.ext_delete_confirm_used", { name: ext.name, services: usedBy.join(", ") })
+          : t("settings.ext_delete_confirm", { name: ext.name });
+        if (!confirm(q)) return;
         try {
           await invoke("remove_extension", { path: ext.path });
           notify(t("settings.ext_deleted"));
@@ -868,6 +908,13 @@
     }
     $("cws-install").disabled = false;
     renderExtensions();
+  });
+
+  $("cws-input").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && !ev.isComposing) {
+      ev.preventDefault();
+      $("cws-install").click();
+    }
   });
 
   $("open-ext-dir").addEventListener("click", async () => {
@@ -927,6 +974,9 @@
     "g-language", "g-staggered-startup", "sleep-min", "startup-delay",
     "g-theme", "g-ring-style", "g-unread-action", "g-shortcuts", "g-urlbar"]) {
     $(id).addEventListener("change", saveGeneral);
+  }
+  for (const id of ["g-notify", "g-notify-sound", "g-staggered-startup"]) {
+    $(id).addEventListener("change", syncGeneralDeps);
   }
 
   $("notify-sound-select").addEventListener("click", async () => {
