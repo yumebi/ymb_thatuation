@@ -36,6 +36,23 @@ public static class Recipes
         ["googlekeep"] = "https://keep.google.com",
         ["threads"] = "https://www.threads.net",
         ["linear"] = "https://linear.app",
+        ["chatgpt"] = "https://chatgpt.com/",
+        ["claude"] = "https://claude.ai/",
+        ["gemini"] = "https://gemini.google.com/",
+        ["perplexity"] = "https://www.perplexity.ai/",
+        ["copilot"] = "https://copilot.microsoft.com/",
+        ["outlook"] = "https://outlook.office.com/mail/",
+        ["googlemeet"] = "https://meet.google.com/",
+        ["googledocs"] = "https://docs.google.com/document/u/0/",
+        ["googlesheets"] = "https://docs.google.com/spreadsheets/u/0/",
+        ["googleslides"] = "https://docs.google.com/presentation/u/0/",
+        ["todoist"] = "https://app.todoist.com/",
+        ["figma"] = "https://www.figma.com/files/",
+        ["deepl"] = "https://www.deepl.com/translator",
+        ["spotify"] = "https://open.spotify.com/",
+        ["youtubemusic"] = "https://music.youtube.com/",
+        ["bluesky"] = "https://bsky.app/",
+        ["facebook"] = "https://www.facebook.com/",
     };
 
     private static readonly Dictionary<string, string> Letters = new()
@@ -66,12 +83,31 @@ public static class Recipes
         ["googlekeep"] = "Gk",
         ["threads"] = "@",
         ["linear"] = "Ln",
+        ["chatgpt"] = "Gp",
+        ["claude"] = "Cl",
+        ["gemini"] = "Ge",
+        ["perplexity"] = "Px",
+        ["copilot"] = "Cp",
+        ["outlook"] = "Ol",
+        ["googlemeet"] = "Mt",
+        ["googledocs"] = "Dc",
+        ["googlesheets"] = "Sh",
+        ["googleslides"] = "Sd",
+        ["todoist"] = "Td",
+        ["figma"] = "Fg",
+        ["deepl"] = "Dl",
+        ["spotify"] = "Sp",
+        ["youtubemusic"] = "Ym",
+        ["bluesky"] = "Bs",
+        ["facebook"] = "Fb",
     };
 
     private static readonly HashSet<string> ChromeUaDefaultRecipes = new()
     {
         "gmail", "googlecalendar", "googlechat", "youtube", "messenger", "notion",
         "whatsapp", "linkedin", "instagram", "googledrive", "googlekeep", "threads",
+        // Google のログインは、WebView 系の UA を弾くことがある。Facebook も同様
+        "gemini", "googlemeet", "googledocs", "googlesheets", "googleslides", "youtubemusic", "facebook",
     };
 
     public static string ResolveUrl(InstanceCfg cfg)
