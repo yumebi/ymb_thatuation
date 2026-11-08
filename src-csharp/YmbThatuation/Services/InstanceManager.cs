@@ -248,6 +248,10 @@ public class InstanceManager
                 webview.CoreWebView2.ContextMenuRequested += (_, e) => OnContextMenuRequested(e);
                 webview.CoreWebView2.ProcessFailed += (_, e) => OnProcessFailed(id, e);
                 webview.CoreWebView2.NewWindowRequested += (_, e) => OnNewWindowRequested(id, e);
+                // Basic 認証(ユーザー名とパスワード)の要求に、入力窓で答える
+                BasicAuth.Attach(webview.CoreWebView2,
+                    () => System.Windows.Application.Current?.MainWindow,
+                    () => ThemePalette.Get(_configStore.Get().Settings.Theme));
                 webview.CoreWebView2.PermissionRequested += (_, e) => OnPermissionRequested(e);
                 webview.CoreWebView2.NotificationReceived += (_, e) => OnNotificationReceived(id, e);
                 webview.CoreWebView2.DownloadStarting += (_, e) => OnDownloadStarting(e);

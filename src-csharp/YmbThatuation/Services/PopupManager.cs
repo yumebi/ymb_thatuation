@@ -292,6 +292,9 @@ public sealed class PopupWindow : Window
     {
         var core = WebView.CoreWebView2;
 
+        // Basic 認証(ユーザー名とパスワード)の要求に、入力窓で答える
+        BasicAuth.Attach(core, () => this, () => _theme);
+
         // ポップアップの中でさらに新しいウインドウを開く連鎖は作らない。外部ブラウザへ。
         core.NewWindowRequested += (_, e) =>
         {
