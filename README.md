@@ -11,7 +11,9 @@ Chromium を同梱せず OS の WebView2 を共有するため、Electron系ツ�
 - **対応レシピ**: Gmail / Google Calendar / Google Chat / Chatwork / Slack / Microsoft Teams /
   Messenger / Discord / Notion / YouTube / X (Twitter) / deck.blue / Misskey / WhatsApp /
   Telegram / LinkedIn / Instagram / Reddit / Trello / GitHub / Twitch / Zoom / Google Drive /
-  Google Keep / Threads / Linear / その他(URL指定)。
+  Google Keep / Threads / Linear / ChatGPT / Claude / Google Gemini / Perplexity /
+  Microsoft Copilot / Outlook(メール) / Google Meet / Google ドキュメント・スプレッドシート・スライド /
+  Todoist / Figma / DeepL / Spotify / YouTube Music / Bluesky / Facebook / その他(URL指定)。
   サービスごとにブラウザUA偽装の既定/有効/無効を切り替え可能。
   追加時、URL指定サービスはfaviconを自動取得してアイコンに使用。
 - **未読バッジ + デスクトップ通知**: ページタイトルの「(N)」表記を検知して
@@ -19,10 +21,13 @@ Chromium を同梱せず OS の WebView2 を共有するため、Electron系ツ�
   サービス単位で通知ミュート可能。
 - **自動スリープ**: 非アクティブが続いたサービスのWebViewを破棄してメモリ解放。
   サービスごとに「スリープさせない」指定が可能。音声/動画再生中のサービスは
-  自動スリープの対象外。
+  自動スリープの対象外。サービスごとに「スリープ中にアイコンを押したら、すぐスリープを解除する」も
+  選べる(既定はオフ。オフのときは、待機画面のボタンで解除)。
 - **メモリ使用量表示**: 各サービス・本体プロセス群の実メモリ使用量を設定画面に表示。
 - **Chrome拡張機能**: 展開済み拡張の読み込み、Chromeウェブストアからの直接インストール、
-  更新チェック、初期設定のリセット(1Password等)に対応。
+  更新チェック、初期設定のリセット(1Password等)に対応。サービスごとに有効にした拡張だけを
+  読み込み、有効にしていない拡張は、起動時にそのサービスのプロファイルから外す(メモリ節約)。
+  拡張の一覧には、使用中のサービスを表示する。
 - **トレイ常駐 / 自動起動 / 二重起動防止 / ウインドウ状態の保存復元**
   (マルチモニタ構成が変わっても画面外に出ないよう補正)。
 - **多言語対応 (i18n)**: 日本語 / English。言語切替は即時反映。
@@ -32,7 +37,11 @@ Chromium を同梱せず OS の WebView2 を共有するため、Electron系ツ�
 - **新規ウインドウ/OAuthポップアップ**: サービス内の `window.open()` / `target="_blank"` は、
   親と同じプロファイル(ログイン状態)の別ウインドウで開く。`window.opener` や `window.close()` が
   通常のブラウザと同じように動くため、「Googleでログイン」などの弾窓がそのまま完了する。
-  開けなかった場合は既定の外部ブラウザで開く。
+  開けなかった場合は既定の外部ブラウザで開く。別ウインドウは、親と同じブラウザ本体を共有するので、
+  プロセスは増えない。
+- **Basic 認証**: 認証が必要なページ(別ウインドウ・サービス本体の画面)で、ユーザー名とパスワードの
+  入力窓を出す。窓にホスト名を表示し、http のときは警告を出す。ページの中の別ホストからの要求には
+  窓を出さない。パスワードは保存しない。
 
 ## 使い方
 
@@ -40,6 +49,8 @@ Chromium を同梱せず OS の WebView2 を共有するため、Electron系ツ�
   虹色枠=表示中、赤バッジ=未読数。
 - 右クリックで個別メニュー(スリープ/再読込/編集)。
 - `⚙`: 設定画面(サービス管理 / 拡張機能 / 一般設定)。
+- 設定画面の「サービス」タブ: 行の左の「⋮⋮」をドラッグして並べ替え(↑↓ ボタンも使える)。
+  「＋ サービスを追加」と、各行の「編集」は、ダイアログで開く。
 
 ## 開発環境のセットアップ
 
