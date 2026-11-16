@@ -31,6 +31,7 @@ public class InstanceManager
   if (window.__ymbMediaScanStarted) return;
   window.__ymbMediaScanStarted = true;
   var last = null;
+  var frameId = Math.random().toString(36).slice(2);
   var detached = new Set();
   var peers = new Set();
   function isPlayingEl(el) { return !el.paused && !el.ended && el.currentTime > 0; }
@@ -53,9 +54,10 @@ public class InstanceManager
   }
   function report() {
     var playing = isAnyPlaying();
-    if (playing === last) return;
+    // 再生中は、数秒おきに「まだ再生中」と知らせる(ホスト側が、知らせの途絶えたフレームを終わったものとして扱う)
+    if (playing === last && !playing) return;
     last = playing;
-    try { window.chrome.webview.postMessage({ type: 'media', playing: playing }); } catch (e) {}
+    try { window.chrome.webview.postMessage({ type: 'media', playing: playing, frame: frameId }); } catch (e) {}
   }
   try {
     var origPlay = HTMLMediaElement.prototype.play;
@@ -83,6 +85,9 @@ public class InstanceManager
   document.addEventListener('pause', report, true);
   document.addEventListener('ended', report, true);
   setInterval(report, 5000);
+  window.addEventListener('pagehide', function () {
+    try { window.chrome.webview.postMessage({ type: 'media', playing: false, frame: frameId }); } catch (e) {}
+  });
   report();
 })();";
 
@@ -121,7 +126,7 @@ public class InstanceManager
     private readonly Dictionary<WebNotice, CoreWebView2Notification> _webSources = new();
     private System.Windows.Threading.DispatcherTimer? _noticeTimer;
     private readonly Dictionary<string, DateTime> _hiddenSince = new();
-    private readonly Dictionary<string, bool> _mediaPlaying = new();
+    private readonly MediaPlaybackTracker _mediaPlaying = new();
     private WebView2? _settingsWebView;
     private System.Threading.Timer? _backgroundTimer;
     private int _backgroundTick;
@@ -631,7 +636,8 @@ public class InstanceManager
                 case "media":
                     if (json.TryGetProperty("playing", out var playingEl))
                     {
-                        _mediaPlaying[id] = playingEl.GetBoolean();
+                        var frame = json.TryGetProperty("frame", out var frameEl) ? frameEl.GetString() ?? "" : "";
+                        _mediaPlaying.Update(id, frame, playingEl.GetBoolean(), DateTime.UtcNow);
                         // 非表示のまま再生が開始/停止された場合も、メモリ抑圧の適用状態を
                         // 更新する(再生中はLowにしないため、バックグラウンドでも途切れない)。
                         if (_webviews.TryGetValue(id, out var mediaWebview)
@@ -1051,7 +1057,7 @@ public class InstanceManager
         try
         {
             // ポップアップ(Slack Huddle等)が開いている間は、親ページが非表示でも抑圧しない。
-            var playing = _mediaPlaying.GetValueOrDefault(id) || Popup?.HasOpenFor(id) == true;
+            var playing = _mediaPlaying.IsPlaying(id, DateTime.UtcNow) || Popup?.HasOpenFor(id) == true;
             webview.CoreWebView2.MemoryUsageTargetLevel = visible || playing
                 ? CoreWebView2MemoryUsageTargetLevel.Normal
                 : CoreWebView2MemoryUsageTargetLevel.Low;
@@ -1092,7 +1098,7 @@ public class InstanceManager
         var limit = TimeSpan.FromMinutes(settings.SleepAfterMinutes);
         var now = DateTime.UtcNow;
         var expired = _hiddenSince
-            .Where(kv => !keepAwakeIds.Contains(kv.Key) && !_mediaPlaying.GetValueOrDefault(kv.Key)
+            .Where(kv => !keepAwakeIds.Contains(kv.Key) && !_mediaPlaying.IsPlaying(kv.Key, now)
                 && now - kv.Value >= limit)
             .Select(kv => kv.Key)
             .ToList();
