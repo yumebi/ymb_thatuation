@@ -88,7 +88,9 @@ public partial class MainWindow : Window
             // 常駐メモリ削減のため、レンダラープロセス数の上限を絞り、クロスオリジンiframe
             // ごとのプロセス分割(サイトアイソレーション)を無効化する。対象は自分で追加した
             // 信頼済みサービスのみのため、セキュリティ分離が緩むリスクは許容範囲と判断。
-            AdditionalBrowserArguments = "--renderer-process-limit=4 --disable-features=SitePerProcess",
+            // 隠れているサービスのタイマーが、5分後に約1分に1回へ間引かれるのを止める
+            // (SlackのHuddleの着信音など、隠れたまま鳴らす音が、遅れないようにする)。
+            AdditionalBrowserArguments = "--renderer-process-limit=4 --disable-features=SitePerProcess,IntensiveWakeUpThrottling",
         };
         var environment = await CoreWebView2Environment.CreateAsync(
             browserExecutableFolder: null, userDataFolder: webview2DataDir, options: environmentOptions);
