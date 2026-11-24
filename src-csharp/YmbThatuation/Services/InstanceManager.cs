@@ -108,6 +108,80 @@ public class InstanceManager
   }, true);
 })();";
 
+    /// <summary>
+    /// 着信音が鳴らない問題の原因を調べるための診断用スクリプト(Slack のページだけに働く)。
+    /// 音の再生要求、表示・フォーカスの変化、WebSocket の接続状態(ハドル関連のメッセージの種類だけ)を、
+    /// window.chrome.webview.postMessage でホストへ送る。メッセージの本文は送らない。
+    /// </summary>
+    private const string DiagnosticScript = @"(function(){
+  try {
+    if (!/(^|\.)slack\.com$/.test(location.hostname)) return;
+    if (window.__ymbDiagStarted) return;
+    window.__ymbDiagStarted = true;
+    var frame = (window === window.top) ? 'top' : 'sub';
+    var count = 0;
+    function post(ev, d) {
+      try { window.chrome.webview.postMessage({ type: 'diag', ev: ev, d: d || {}, vis: document.visibilityState, focus: document.hasFocus(), frame: frame }); } catch (e) {}
+    }
+    function clip(s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n) : s; }
+    post('start', { url: clip(location.origin + location.pathname, 80) });
+    document.addEventListener('visibilitychange', function () { post('visibility'); });
+    window.addEventListener('focus', function () { post('focus'); });
+    window.addEventListener('blur', function () { post('blur'); });
+    try {
+      var origPlay = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        var src = clip((this.currentSrc || this.src || '').split('?')[0], 100);
+        post('play', { src: src, muted: this.muted, vol: this.volume });
+        var r = origPlay.apply(this, arguments);
+        try { if (r && r.then) r.then(function () { post('play-ok', { src: src }); }, function (e) { post('play-rejected', { src: src, name: e && e.name }); }); } catch (e) {}
+        return r;
+      };
+    } catch (e) {}
+    ['AudioBufferSourceNode', 'OscillatorNode'].forEach(function (n) {
+      try {
+        var P = window[n] && window[n].prototype;
+        if (!P || !P.start) return;
+        var o = P.start;
+        P.start = function () { post('webaudio-start', { node: n, ctx: this.context && this.context.state }); return o.apply(this, arguments); };
+      } catch (e) {}
+    });
+    try {
+      var WS = window.WebSocket;
+      var WSW = function (url, protocols) {
+        var ws = protocols === undefined ? new WS(url) : new WS(url, protocols);
+        var host = '';
+        try { host = new URL(url).host; } catch (e) {}
+        host = clip(host, 60);
+        post('ws-new', { host: host });
+        ws.addEventListener('open', function () { post('ws-open', { host: host }); });
+        ws.addEventListener('close', function (e) { post('ws-close', { host: host, code: e.code, clean: e.wasClean }); });
+        ws.addEventListener('error', function () { post('ws-error', { host: host }); });
+        ws.addEventListener('message', function (e) {
+          count++;
+          try {
+            var raw = e.data;
+            if (typeof raw !== 'string' || raw.length > 200000) return;
+            if (raw.indexOf('huddle') < 0 && raw.indexOf('sh_room') < 0) return;
+            var m = JSON.parse(raw);
+            post('ws-msg', { t: clip(m && m.type, 60), sub: clip(m && m.subtype, 40) });
+          } catch (x) {}
+        });
+        return ws;
+      };
+      WSW.prototype = WS.prototype;
+      ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'].forEach(function (k) { WSW[k] = WS[k]; });
+      window.WebSocket = WSW;
+    } catch (e) {}
+    if (frame === 'top') {
+      setInterval(function () { post('ws-stat', { msgs: count }); count = 0; }, 60000);
+    }
+  } catch (e) {}
+})();";
+
+    /// <summary>診断ログ用。Slack の再生状態が変わったときだけ記録するための、直前の値。</summary>
+    private bool _lastSlackPlaying;
+
     private readonly Grid _contentHost;
     private readonly FrameworkElement _welcomePanel;
     private readonly WebView2 _sidebarWebView;
@@ -248,6 +322,7 @@ public class InstanceManager
 
                 await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(MediaPlaybackScript);
                 await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(ShortcutScript);
+                await webview.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(DiagnosticScript);
                 webview.CoreWebView2.WebMessageReceived += (_, e) => OnWebMessageReceived(id, e);
 
                 webview.CoreWebView2.ContextMenuRequested += (_, e) => OnContextMenuRequested(e);
@@ -638,6 +713,11 @@ public class InstanceManager
                     {
                         var frame = json.TryGetProperty("frame", out var frameEl) ? frameEl.GetString() ?? "" : "";
                         _mediaPlaying.Update(id, frame, playingEl.GetBoolean(), DateTime.UtcNow);
+                        if (IsSlack(id) && playingEl.GetBoolean() != _lastSlackPlaying)
+                        {
+                            _lastSlackPlaying = playingEl.GetBoolean();
+                            DiagnosticLog.Default.Write("media", $"{id} playing={_lastSlackPlaying}");
+                        }
                         // 非表示のまま再生が開始/停止された場合も、メモリ抑圧の適用状態を
                         // 更新する(再生中はLowにしないため、バックグラウンドでも途切れない)。
                         if (_webviews.TryGetValue(id, out var mediaWebview)
@@ -647,6 +727,12 @@ public class InstanceManager
                                 mediaContainer.Visibility == Visibility.Visible);
                         }
                     }
+                    break;
+                case "diag":
+                    DiagnosticLog.Default.Write("page",
+                        $"{id} {GetString(json, "frame")} {GetString(json, "ev")} vis={GetString(json, "vis")} " +
+                        $"focus={(json.TryGetProperty("focus", out var focusEl) ? focusEl.ToString() : "")} " +
+                        DiagnosticLog.Clip(json.TryGetProperty("d", out var dEl) ? dEl.GetRawText() : "", 300));
                     break;
                 case "shortcut":
                     if (json.TryGetProperty("digit", out var digitEl))
@@ -697,6 +783,13 @@ public class InstanceManager
         QueueNotice(new UnreadNotice(id, inst?.Name ?? id, count));
     }
 
+    private static string GetString(JsonElement json, string name) =>
+        json.TryGetProperty(name, out var el) ? DiagnosticLog.Clip(el.ToString(), 40) : "";
+
+    /// <summary>診断ログの対象(Slack のサービス)か。</summary>
+    private bool IsSlack(string id) =>
+        _configStore.Get().Instances.FirstOrDefault(i => i.Id == id)?.Recipe == "slack";
+
     /// <summary>そのサービスが、いまユーザーの目の前に表示されているか。</summary>
     private bool IsUserViewing(string id)
     {
@@ -728,6 +821,13 @@ public class InstanceManager
 
         var config = _configStore.Get();
         var inst = config.Instances.FirstOrDefault(i => i.Id == id);
+        if (inst?.Recipe == "slack")
+        {
+            DiagnosticLog.Default.Write("notify",
+                $"{id} title={DiagnosticLog.Clip(e.Notification.Title, 60)} bodyLen={e.Notification.Body?.Length ?? 0} " +
+                $"silent={e.Notification.IsSilent} viewing={IsUserViewing(id)} " +
+                $"enabled={config.Settings.Notifications} muted={inst.NotifyMuted}");
+        }
         if (!config.Settings.Notifications || inst?.NotifyMuted == true) return;
         if (IsUserViewing(id)) return;
 
@@ -778,6 +878,10 @@ public class InstanceManager
 
         // 消音の指定(IsSilent)の通知だけなら、音は鳴らさない
         var allSilent = unread.Count == 0 && web.All(n => n.Silent);
+        if (web.Any(n => IsSlack(n.Id)))
+        {
+            DiagnosticLog.Default.Write("flush", $"web={web.Count} unread={unread.Count} allSilent={allSilent}");
+        }
         if (!allSilent) Tray?.PlayNotificationSound();
     }
 
@@ -795,6 +899,7 @@ public class InstanceManager
     private void OnProcessFailed(string id, CoreWebView2ProcessFailedEventArgs e)
     {
         System.Diagnostics.Debug.WriteLine($"[process-failed] {id}: {e.ProcessFailedKind}");
+        DiagnosticLog.Default.Write("process-failed", $"{id} {e.ProcessFailedKind}");
 
         if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited
             || e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
@@ -1013,6 +1118,7 @@ public class InstanceManager
     }
     private void HideOthers(string? keep)
     {
+        DiagnosticLog.Default.Write("view", $"show={keep ?? "none"}");
         foreach (var (otherId, container) in _containers)
         {
             var visible = otherId == keep;
@@ -1110,6 +1216,7 @@ public class InstanceManager
                 // Huddle等のポップアップが開いている間にスリープすると、親ごとポップアップも閉じてしまう。
                 if (Popup?.HasOpenFor(id) == true) return;
                 System.Diagnostics.Debug.WriteLine($"[auto-sleep] {id}");
+                DiagnosticLog.Default.Write("auto-sleep", id);
                 _ = SleepAsync(id);
                 _hiddenSince.Remove(id);
             });
